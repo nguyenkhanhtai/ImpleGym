@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ImpleGym - Competitive Programming Implementation Gym</title>
+  <!-- KaTeX for Math Equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <!-- Marked for Markdown Parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation Header -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <span class="brand-logo">⚡</span>
+        <span class="brand-title">ImpleGym</span>
+        <span class="brand-badge">Yosupo Edition</span>
+      </div>
+      <nav class="nav-links">
+        <button class="nav-tab active" data-tab="explorer">Problem Explorer</button>
+        <button class="nav-tab" data-tab="workout">Gym Workout</button>
+        <button class="nav-tab" data-tab="history">Session History</button>
+        <button class="nav-tab" data-tab="forge">AI Problem Forge</button>
+      </nav>
+      <div class="nav-actions">
+        <button id="btn-quick-sample" class="btn btn-primary">🎲 Quick Gaussian Sample</button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-container">
+      
+      <!-- Tab 1: Problem Explorer -->
+      <section id="tab-explorer" class="tab-pane active">
+        <div class="pane-header">
+          <h2>Problem Catalog</h2>
+          <p class="subtitle">Browse, filter, or manually pick implementation problems from Library Checker.</p>
+        </div>
+
+        <div class="filter-card">
+          <div class="filter-group">
+            <label for="search-input">Search</label>
+            <input type="text" id="search-input" placeholder="Search by title, keyword, slug...">
+          </div>
+          <div class="filter-group">
+            <label for="category-select">Category</label>
+            <select id="category-select">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="difficulty-slider">Max Difficulty: <span id="difficulty-label">10</span>/10</label>
+            <input type="range" id="difficulty-slider" min="1" max="10" value="10">
+          </div>
+          <div class="filter-group">
+            <label for="status-select">Status</label>
+            <select id="status-select">
+              <option value="all">All Statuses</option>
+              <option value="solved">Solved (AC)</option>
+              <option value="unsolved">Unsolved</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="problem-table">
+            <thead>
+              <tr>
+                <th>Difficulty</th>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Tags</th>
+                <th>Best Solve Time</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="problem-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tab 2: Gym Workout & Stopwatch -->
+      <section id="tab-workout" class="tab-pane">
+        <div class="workout-grid">
+          
+          <!-- Left Column: Problem Statement & Live Stopwatch HUD -->
+          <div class="workout-left">
+            <div class="stopwatch-card">
+              <div class="stopwatch-header">
+                <span class="pulse-dot"></span>
+                <span id="session-status-text">WORKOUT IN PROGRESS</span>
+              </div>
+              <div class="stopwatch-display" id="stopwatch-timer">00:00:00</div>
+              <div class="stopwatch-meta" id="stopwatch-meta">
+                <span>Problem: <b id="current-problem-title">None</b></span>
+                <span>Difficulty: <b id="current-problem-diff">-</b>/10</span>
+              </div>
+            </div>
+
+            <div class="problem-statement-card">
+              <div class="statement-header">
+                <h3 id="stmt-title">Select a problem to start practicing</h3>
+                <span class="category-badge" id="stmt-category">-</span>
+              </div>
+              <div class="statement-body" id="stmt-body">
+                <p>Use the <b>Problem Explorer</b> or click <b>Quick Gaussian Sample</b> above to begin your workout.</p>
+              </div>
+              <div class="statement-samples" id="stmt-samples"></div>
+            </div>
+          </div>
+
+          <!-- Right Column: Code Editor & Submissions -->
+          <div class="workout-right">
+            <div class="editor-card">
+              <div class="editor-toolbar">
+                <div class="tool-item">
+                  <label>Compiler:</label>
+                  <select id="compiler-select">
+                    <!-- Populated from backend -->
+                  </select>
+                </div>
+                <div class="tool-item">
+                  <label>Flags:</label>
+                  <input type="text" id="compiler-flags" value="-O3">
+                </div>
+                <button id="btn-submit" class="btn btn-success">🚀 Submit Solution</button>
+              </div>
+              
+              <div class="code-area-wrapper">
+                <textarea id="code-editor" spellcheck="false" placeholder="// Write your C++ or Python solution here...
+#include <iostream>
+using namespace std;
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+    
+    return 0;
+}"></textarea>
+              </div>
+            </div>
+
+            <!-- Submission Verdict Card & Live Testcase Cards -->
+            <div class="verdict-container" id="verdict-container" style="display: none;">
+              <div class="verdict-header">
+                <h4>Submission Verdict: <span id="latest-verdict" class="verdict-badge">AC</span></h4>
+                <div class="verdict-stats">
+                  <span>⏱️ Time: <b id="verdict-time">0 ms</b></span>
+                  <span>💾 Memory: <b id="verdict-mem">0 KB</b></span>
+                  <button id="btn-refine-latest" class="btn btn-ai">✨ Refine with AI</button>
+                </div>
+              </div>
+              <div class="testcases-list" id="testcases-list">
+                <!-- Live testcase items -->
+              </div>
+              <div class="error-log" id="compiler-error-log" style="display: none;">
+                <pre id="compiler-error-text"></pre>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Session History -->
+      <section id="tab-history" class="tab-pane">
+        <div class="pane-header">
+          <h2>Practice Session Records</h2>
+          <p class="subtitle">Permanent logs of every coding session, time-to-AC stats, and submissions.</p>
+        </div>
+        <div class="table-container">
+          <table class="problem-table">
+            <thead>
+              <tr>
+                <th>Session ID</th>
+                <th>Problem</th>
+                <th>Status</th>
+                <th>Duration to AC</th>
+                <th>Submissions</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tab 4: AI Problem Forge -->
+      <section id="tab-forge" class="tab-pane">
+        <div class="pane-header">
+          <h2>AI Problem Synthesizer</h2>
+          <p class="subtitle">Synthesize novel competitive programming problems combining 2+ data structures with GPT.</p>
+        </div>
+
+        <div class="forge-card">
+          <div class="forge-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="forge-topic-1">Data Structure / Technique 1</label>
+                <input type="text" id="forge-topic-1" placeholder="e.g. Fenwick Tree, Treap, Suffix Automaton" value="Heavy-Light Decomposition">
+              </div>
+              <div class="form-group">
+                <label for="forge-topic-2">Data Structure / Technique 2</label>
+                <input type="text" id="forge-topic-2" placeholder="e.g. Dynamic Range Affine, Sparse Table" value="Dynamic Fenwick Tree">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="forge-diff">Target Difficulty (1-10)</label>
+                <input type="number" id="forge-diff" min="1" max="10" value="7">
+              </div>
+              <div class="form-group">
+                <label for="forge-extra">Extra Instructions (Optional)</label>
+                <input type="text" id="forge-extra" placeholder="e.g. Path queries, modulo 998244353">
+              </div>
+            </div>
+            <button id="btn-forge-submit" class="btn btn-primary">⚡ Synthesize Problem with GPT</button>
+          </div>
+          <div id="forge-result-container" style="display: none; margin-top: 2rem;">
+            <div class="alert alert-success">Problem synthesized successfully and added to your problem catalog!</div>
+            <button id="btn-practice-forged" class="btn btn-success" style="margin-top: 1rem;">🎯 Practice This Problem Now</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Gaussian Sampler Modal -->
+    <div id="sampler-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🎲 Gaussian & Skewed Sampler</h3>
+          <button id="btn-close-sampler-modal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Mean Difficulty: <span id="sampler-mean-val">5.5</span> / 10</label>
+            <input type="range" id="sampler-mean" min="1.0" max="10.0" step="0.5" value="5.5">
+          </div>
+          <div class="form-group">
+            <label>Standard Deviation: <span id="sampler-std-val">1.5</span></label>
+            <input type="range" id="sampler-std" min="0.5" max="3.0" step="0.1" value="1.5">
+          </div>
+          <div class="form-group">
+            <label>Distribution Skewness:</label>
+            <div class="radio-group">
+              <label><input type="radio" name="sampler-skew" value="left"> ⬅️ Left-skewed (Easier focus)</label>
+              <label><input type="radio" name="sampler-skew" value="balanced" checked> ⚖️ Balanced (Centered)</label>
+              <label><input type="radio" name="sampler-skew" value="right"> ➡️ Right-skewed (Harder focus)</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" id="sampler-exclude-solved"> Exclude already solved problems</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-roll-sample" class="btn btn-primary btn-block">🚀 Sample & Start Stopwatch</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Refinement Drawer -->
+    <div id="ai-drawer" class="drawer-overlay" style="display: none;">
+      <div class="drawer-panel">
+        <div class="drawer-header">
+          <h3>✨ AI Code Refinement & CP Insights</h3>
+          <button id="btn-close-drawer" class="btn-close">&times;</button>
+        </div>
+        <div class="drawer-body" id="drawer-content">
+          <div class="loading-spinner">Analyzing implementation with GPT...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
