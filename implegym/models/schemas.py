@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 
 class SampleCaseSchema(BaseModel):
@@ -28,6 +28,7 @@ class ProblemBaseSchema(BaseModel):
     memory_limit_mb: int = 1024
     tags: List[str] = Field(default_factory=list)
     source: str = "yosupo"
+    is_difficulty_customized: bool = False
 
 
 class ProblemResponseSchema(ProblemBaseSchema):
@@ -38,7 +39,23 @@ class ProblemResponseSchema(ProblemBaseSchema):
     id: int
     created_at: datetime
     is_solved: Optional[bool] = False
+    is_successful: Optional[bool] = False
     best_time_seconds: Optional[float] = None
+
+    @computed_field
+    @property
+    def target_time_seconds(self) -> float:
+        """Target benchmark time in seconds (difficulty * 5 minutes)."""
+        return float(self.difficulty * 5 * 60)
+
+
+class ProblemUpdateSchema(BaseModel):
+    """Schema for manually updating problem properties."""
+
+    difficulty: Optional[int] = Field(None, ge=1, le=10, description="Difficulty rating from 1 to 10")
+    title: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class ProblemFilterParams(BaseModel):
@@ -58,7 +75,12 @@ class SamplerConfigSchema(BaseModel):
     """Gaussian sampler configuration schema."""
 
     mean_difficulty: float = Field(default=5.5, ge=1.0, le=10.0)
-    standard_deviation: float = Field(default=1.5, gt=0.0, le=5.0)
+    standard_deviation: float = Field(
+        default=1.5,
+        gt=0.0,
+        le=5.0,
+        validation_alias=AliasChoices("standard_deviation", "std_dev"),
+    )
     skewness: str = Field(
         default="balanced",
         description="Distribution skewness: 'balanced', 'left' (easier), or 'right' (harder)",
@@ -128,6 +150,8 @@ class PracticeSessionResponseSchema(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime] = None
     total_duration_seconds: Optional[float] = None
+    target_time_seconds: Optional[float] = None
+    is_successful: Optional[bool] = None
     submission_count: int
     submissions: List[SubmissionResponseSchema] = Field(default_factory=list)
 
@@ -154,6 +178,17 @@ class AIReviewResponseSchema(BaseModel):
     created_at: datetime
 
 
+class AIConfigSchema(BaseModel):
+    """Configuration schema for AI provider and hyperparameters."""
+
+    provider: str = Field(default="openai", description="openai, gemini, deepseek, claude, ollama")
+    model: Optional[str] = Field(default=None, description="Model identifier")
+    api_key: Optional[str] = Field(default=None, description="API Key")
+    api_base: Optional[str] = Field(default=None, description="Custom API Base URL")
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Sampling temperature")
+    max_tokens: Optional[int] = Field(default=4096, ge=128, le=16384, description="Max token limit")
+
+
 class GenerateProblemRequest(BaseModel):
     """Request schema for GPT problem generator."""
 
@@ -161,6 +196,7 @@ class GenerateProblemRequest(BaseModel):
     topic_2: str = Field(description="Second DS or concept, e.g., Heavy-Light Decomposition")
     target_difficulty: int = Field(default=6, ge=1, le=10)
     extra_instructions: Optional[str] = None
+    ai_config: Optional[AIConfigSchema] = None
 
 
 class CompilerProfileSchema(BaseModel):

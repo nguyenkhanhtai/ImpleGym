@@ -98,8 +98,444 @@ This document tracks all project requirements, architectural decisions, prompt h
 > "Create a context.md. This is personal, every time I ask you, and you answer me, record my question and what you've done in the context.md, record that for the next AI session."
 > "add a context.md, record this plan into it, how you execute it and the results"
 
+#### User Prompt 8
+> "now, how can I integrate the yosupo into the code"
+
 #### Agent Actions
-- Created `context.md` to persist the full design history, architectural plan, prompt log, execution tracker, and test verification results across sessions.
+- Designed and built the automated **`YosupoSyncer`** module (`implegym/problems/yosupo_syncer.py`):
+  - Automatically clones / pulls `https://github.com/yosupo06/library-checker-problems.git` into `data/yosupo_repo`.
+  - Parses each category (`datastructure`, `tree`, `graph`, `math`, `string`, `geometry`, `polynomial`, etc.).
+  - Extracts `info.toml` (title, timelimit), `task.md` (statements, constraints, LaTeX math), `example_*.in/out` sample testcases.
+  - Automatically computes an implementation difficulty rating (1..10) using category baseline heuristics and reference solution (`sol/correct.cpp`) code complexity metrics.
+  - Upserts all problems directly into PostgreSQL.
+- Exposed 3 integration methods:
+  1. **One-click Web UI Button**: `🔄 Sync Official Yosupo Repo` on the Problem Explorer page (`POST /api/problems/sync`).
+  2. **CLI Command**: `implegym sync-yosupo` (or `python -m implegym.cli sync-yosupo`).
+  3. **Makefile Shortcut**: `make sync-yosupo`.
+
+#### User Prompt 9
+> "I want the following information of the problem is to be updatable: difficulty, I want to manually update it sometimes."
+
+#### Agent Actions
+- Added manual problem difficulty update support:
+  - **Pydantic Schema**: Added `ProblemUpdateSchema` in `implegym/models/schemas.py`.
+  - **Catalog Service**: Added `update_problem(slug, update_dict)` in `implegym/problems/catalog.py`.
+  - **REST API Endpoint**: Added `PATCH /api/problems/{slug}` in `implegym/server/app.py`.
+  - **CLI Command**: Added `implegym set-difficulty <slug> <difficulty>` in `implegym/cli.py`.
+  - **Interactive Web UI**: Made the difficulty badge in the Problem Explorer table an interactive styled dropdown selector with instant real-time auto-saving.
+  - **Automated Tests**: Added `test_update_problem_difficulty` in `tests/test_api.py`.
+
+#### User Prompt 10
+> "cho tôi hỏi là khi tôi pytest -v thì nó sẽ làm gì á" (What happens when running pytest -v?)
+
+#### Agent Actions
+- Documented and explained the step-by-step automated test execution workflow:
+  1. Test fixture lifecycle and in-memory test database setup (`tests/conftest.py`).
+  2. Hypothesis property-based mathematical proofs for Gaussian/Skew-Normal sampler (`tests/test_sampler_property.py`).
+  3. Multi-compiler matrix tests (`g++` C++17/20/23, CE diagnostics, Python) (`tests/test_compiler_matrix.py`).
+  4. Judge engine evaluation and differential output comparisons (`AC`, `WA`, `TLE`, `RE`) (`tests/test_judge_differential.py`).
+  5. Session stopwatch lifecycle and AC freeze verification (`tests/test_session_lifecycle.py`).
+  6. AI code refiner and composite problem synthesizer tests (`tests/test_ai.py`).
+  7. End-to-end FastAPI endpoint tests (`tests/test_api.py`).
+  8. Sampler benchmarks and Yosupo difficulty rating heuristics (`tests/benchmark/`, `tests/test_yosupo_syncer.py`).
+
+#### User Prompt 11
+> "Warning gì đây nhỉ? (PytestBenchmarkWarning: Benchmark fixture was not used at all in this test!)"
+
+#### Agent Actions
+- Explained the root cause of `PytestBenchmarkWarning`: `pytest-benchmark` requires passing the target function into the `benchmark(callable, *args)` fixture callable rather than running manual loops.
+- Refactored [`tests/benchmark/test_benchmarks.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/benchmark/test_benchmarks.py) to idiomatic benchmark execution:
+  ```python
+  result = benchmark(GaussianSampler.compute_difficulty_probabilities, config)
+  ```
+- Warning completely resolved, enabling statistical performance profiling tables.
+
+#### User Prompt 12
+> "pytest sẽ gắn với thư mục test hay là có thể quy định khác" (Does pytest strictly bind to the tests folder or can it be configured?)
+
+#### Agent Actions
+- Documented Pytest Discovery rules and configuration mechanisms:
+  1. Default discovery conventions (`test_*.py`, `*_test.py` across recursive tree).
+  2. Configuration via [`pyproject.toml`](file:///e:/Documents/Programming/DSA/ImpleGym/pyproject.toml) using `testpaths`, `python_files`, `python_classes`, and `python_functions`.
+  3. CLI path targeting (`pytest custom_dir/`, `pytest path/to/file.py::func_name`).
+  4. Keyword and marker filtering (`pytest -k`, `pytest -m`).
+
+#### User Prompt 13
+> "may i ask what is the sandbox folder for? Add it to .gitignore for me"
+
+#### Agent Actions
+- Explained the purpose of the `sandbox/` directory:
+  - Ephemeral isolated workspace for the compiler (`CompilerManager`) and judge runner (`JudgeRunner`).
+  - Each submission or test execution receives a unique subfolder (e.g. `sandbox/01e8c463834c/`) containing `solution.cpp`, compiled binary `solution.exe`, and intermediate files to avoid file locking and concurrency race conditions.
+- Updated [`.gitignore`](file:///e:/Documents/Programming/DSA/ImpleGym/.gitignore) to exclude `sandbox/`, `data/`, and `*.exe`.
+
+#### User Prompt 14
+> "test benchmark là nó đang test cái gì thế nhỉ?" (What are the benchmark tests evaluating?)
+
+#### Agent Actions
+- Documented and explained the two core benchmark test cases in [`tests/benchmark/test_benchmarks.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/benchmark/test_benchmarks.py):
+  1. `test_benchmark_sampler_distribution_computation`: Benchmarks the computation latency of continuous Gaussian/Skew-Normal probability density functions (PDF) to discrete $[1, 10]$ difficulty weights via `scipy.stats.skewnorm.pdf`.
+  2. `test_benchmark_comparator_throughput`: Benchmarks token-by-token comparison throughput of `OutputComparator` on large CP outputs ($50,000+$ integer/float tokens with whitespace normalization and floating-point tolerance).
+
+#### User Prompt 15
+> "I want when we use AI to generate problems, I want to also ask it to generate a test generator as well. Then it wil push the testcases into the database, also I'd like the AI to generate the solution itself and submit the code to test if the problem could be passed by itself."
+
+#### Agent Actions
+- Upgraded the [`ProblemGeneratorService`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/generator.py) synthesis pipeline:
+  1. **Prompt Contract**: Prompts GPT to generate not only the problem statement and samples, but also a standalone C++ test generator (`generator_cpp`) and model solution (`solution_cpp`).
+  2. **Automated Testcase Generation Engine**:
+     - Automatically compiles `generator_cpp` with `CompilerManager`.
+     - Automatically compiles `solution_cpp` with `CompilerManager`.
+     - Runs the compiled generator with randomized seeds (e.g. 42, 1337, 2026, 99999) to output test inputs.
+     - Feeds each generated test input into the compiled model solution to compute expected ground-truth outputs.
+     - Collects all synthesized test cases and saves them to the problem database.
+  3. **Automated Self-Testing & Verification**:
+     - Submits `solution_cpp` to [`JudgeRunner.evaluate()`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py) against all generated test cases.
+     - Verifies that the model solution scores **100% `AC`** (Accepted) on its own generated tests within the defined time limit.
+     - Tags the problem with `self_test_ac` and saves the complete verified problem into PostgreSQL.
+- Updated [`tests/test_ai.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_ai.py) to assert test generation and self-testing validation.
+
+#### User Prompt 16
+> "in ai, i want to have a server dedicated to every provider, gemini, openai, deepseek, claude, ollama,..."
+
+#### Agent Actions
+- Architected and built the **Multi-Provider AI Subsystem** adhering to SOLID principles:
+  1. **Abstract Base Provider** (`BaseLLMProvider` in [`implegym/ai/providers.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/providers.py)).
+  2. **Dedicated Provider Implementations**:
+     - `OpenAIProvider`: OpenAI Models (`gpt-4o`, `gpt-4o-mini`, `o3-mini`, `o1`).
+     - `GeminiProvider`: Google Gemini Models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-pro`) via OpenAI-compatible endpoint.
+     - `DeepSeekProvider`: DeepSeek Models (`deepseek-chat`, `deepseek-reasoner` R1).
+     - `ClaudeProvider`: Anthropic Claude Models (`claude-3-5-sonnet`, `claude-3-7-sonnet`, `claude-3-5-haiku`).
+     - `OllamaProvider`: Local Offline Open-Source LLMs (`llama3`, `deepseek-r1`, `qwen2.5-coder`) with zero API keys.
+  3. **Central Router & Factory** (`LLMManager` in [`implegym/ai/client.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/client.py)):
+     - Dynamic runtime dispatch and fallback.
+  4. **REST API Endpoint**:
+     - Added `GET /api/ai/providers` to list all available/configured AI engines.
+  5. **Automated Testing**:
+     - Added [`tests/test_ai_providers.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_ai_providers.py) to test all 5 dedicated providers.
+
+#### User Prompt 17
+> "I want the config of AI provider and its hyperparameters can be adjusted in apps including: API_key, API_base, provider, temperature, max_tokens (optional), ..."
+
+#### Agent Actions
+- Added dynamic runtime AI configuration and hyperparameter tuning:
+  1. **Pydantic Schema**: Added `AIConfigSchema` in [`implegym/models/schemas.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/models/schemas.py) supporting `provider`, `model`, `api_key`, `api_base`, `temperature` ($0.0 \dots 2.0$), and `max_tokens` ($128 \dots 16384$).
+  2. **Provider Overrides**: Updated `BaseLLMProvider` and all concrete providers (`OpenAIProvider`, `GeminiProvider`, `DeepSeekProvider`, `ClaudeProvider`, `OllamaProvider`) to support custom `api_base`, `temperature`, and `max_tokens`.
+  3. **Central Factory Configuration**: Added `LLMManager.configure_provider(config)` in [`implegym/ai/client.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/client.py) for hot-swapping providers without server restarts.
+  4. **REST API Endpoints**:
+     - `GET /api/ai/config`: Fetches active settings with masked API keys.
+     - `POST /api/ai/config`: Saves updated hyperparameters and credentials.
+  5. **Interactive UI**: Added an **`⚙️ AI Settings`** modal in the top navigation bar with sliders for temperature, token inputs, API key/base inputs, and instant live saving.
+  6. **Automated Testing**: Added `test_llm_manager_dynamic_configuration` in [`tests/test_ai_providers.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_ai_providers.py).
+
+#### User Prompt 18
+> "also, I'd like to choose the models, is it possible to get the list of available models from the providers?"
+
+#### Agent Actions
+- Built Model Discovery and Dynamic Selection for each provider:
+  1. **Provider Model Discovery**: Implemented `get_available_models()` across all provider classes:
+     - `OpenAI`: `gpt-4o`, `gpt-4o-mini`, `o3-mini`, `o1`, `o1-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`.
+     - `Gemini`: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, `gemini-1.5-pro`, `gemini-1.5-flash`.
+     - `DeepSeek`: `deepseek-chat`, `deepseek-reasoner` (R1), `deepseek-coder`.
+     - `Claude`: `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`, `claude-3-opus-20240229`.
+     - `Ollama`: `qwen2.5-coder:latest`, `deepseek-r1:latest`, `deepseek-r1:7b`, `llama3.3:latest`, `codellama:latest`.
+  2. **REST API Endpoint**: Added `GET /api/ai/models?provider={provider_name}` in [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py).
+  3. **Interactive UI**:
+     - Connected the Model input in the **AI Settings Modal** to an auto-completing HTML5 `<datalist>`.
+     - When changing the Provider dropdown, the model suggestions automatically update in real-time.
+  4. **Automated Testing**: Added `test_provider_model_listings` in [`tests/test_ai_providers.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_ai_providers.py).
+
+#### User Prompt 19
+> "why the openai api is not having a default base?"
+
+#### Agent Actions
+- Explained the underlying SDK design: The official `openai` Python SDK defaults internally to `https://api.openai.com/v1` when `base_url` is omitted.
+- Refactored [`OpenAIProvider`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/providers.py) to explicitly define `DEFAULT_BASE = "https://api.openai.com/v1"` and initialize `base = api_base or os.getenv("OPENAI_API_BASE", self.DEFAULT_BASE)` for consistency with all other providers (Gemini, DeepSeek, Claude, Ollama) and clear UI display.
+
+#### User Prompt 20
+> "the test failed, because of the added providers"
+
+#### Agent Actions
+- Diagnosed root cause: `OpenAIProvider` was missing its concrete `chat_completion` implementation due to a previous partial snippet edit, causing `TypeError: Can't instantiate abstract class OpenAIProvider without an implementation for abstract method 'chat_completion'`.
+- Fully implemented `chat_completion`, `get_available_models`, and dynamic configuration in [`implegym/ai/providers.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/ai/providers.py).
+- Verified test suite: Executed `pytest -v` across all 27 automated tests (**27 passed in 66.33s with 100% success rate**).
+
+#### User Prompt 21
+> "now, how can i start using this app?"
+
+#### Agent Actions
+- Documented complete Quickstart and Operational Guide:
+  1. Starting the server via CLI: `python -m implegym.cli serve` or `.\.venv\Scripts\implegym.exe serve --port 8000`.
+  2. Database seeding & synchronization: `python -m implegym.cli seed` and `python -m implegym.cli sync-yosupo`.
+  3. Interactive UI walkthrough: Problem Explorer, Gaussian/Skewed Sampler, Practice Session Stopwatch, Multi-Compiler Selection, AI Code Reviewer, AI Problem Forge, and Runtime AI Settings Modal.
+
+#### User Prompt 22
+> "start failed, connect call failed OSError: Multiple exceptions: [Errno 10061] Connect call failed ('::1', 5432) / so I need to have a postgre sql server first?"
+
+#### Agent Actions
+- Explained database connectivity options:
+  1. **Zero-Setup Mode (Local SQLite Fallback)**: Updated [`implegym/db/database.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/database.py) to automatically detect if PostgreSQL on port 5432 is offline and seamlessly switch to persistent local SQLite (`data/implegym.db`) without crashing.
+  2. **Production Mode (Docker PostgreSQL 16)**: Provided `docker-compose.yml` (`docker-compose up -d postgres`) for running PostgreSQL instantly.
+  3. **Config Flexibility**: Documented `DATABASE_URL` settings in `.env`.
+
+#### User Prompt 23
+> "Is there any way to sync between two database?"
+
+#### Agent Actions
+- Built the **Database Synchronization Subsystem**:
+  1. **Sync Service (`DatabaseSyncService` in [`implegym/db/syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/syncer.py))**:
+     - Connects across any two database URLs (e.g. `sqlite+aiosqlite:///data/implegym.db` $\to$ `postgresql+asyncpg://...`).
+     - Reads and migrates `Problem`, `CustomProblem`, `PracticeSession`, `Submission`, and `AIReview` tables.
+     - Performs non-destructive upserts and deduplication.
+  2. **CLI Command**: Added `implegym sync-db` (`--source <url> --target <url>`) in [`implegym/cli.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/cli.py) to sync local SQLite to PostgreSQL with a single command.
+  3. **REST API Endpoint**: Added `POST /api/db/sync` in [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py).
+  4. **Automated Testing**: Added [`tests/test_db_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_db_syncer.py).
+
+#### User Prompt 24
+> "database sync is failing"
+
+#### Agent Actions
+- Diagnosed database sync failure modes:
+  1. **Missing Source Schema**: If syncing from a newly created SQLite file, querying before table creation caused an operational error. Updated [`DatabaseSyncService`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/syncer.py) to run `Base.metadata.create_all` on **both** source and target engines before extracting and inserting records.
+  2. **Unreachable PostgreSQL Port 5432**: If target PostgreSQL is offline, enhanced error diagnostics in [`implegym/cli.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/cli.py) to guide the user to start PostgreSQL via `docker-compose up -d postgres`.
+  3. **Auto Directory Creation**: Ensured file-based SQLite paths (`data/`) are automatically created.
+
+#### User Prompt 25
+> "oh, I reject some of your changes in db, please check it out for me"
+
+#### Agent Actions
+- Inspected and aligned [`implegym/db/syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/syncer.py):
+  - Removed manual path extraction string manipulation from `_create_engine` as requested, keeping engine creation clean and standardized.
+  - Retained clean schema initialization on source and target engines.
+- Verified test suite: [`tests/test_db_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_db_syncer.py) passed 100% in 1.69s.
+
+#### User Prompt 26
+> "now, how can I use it without postgresql, i temporarily want to use sqlite"
+
+#### Agent Actions
+- Configured local environment for standalone SQLite mode:
+  1. Created [`.env`](file:///e:/Documents/Programming/DSA/ImpleGym/.env) with `DATABASE_URL=sqlite+aiosqlite:///data/implegym.db`.
+  2. Provided step-by-step instructions to seed and run the server using SQLite.
+
+#### User Prompt 27
+> "sqlite need a server too?"
+
+#### Agent Actions
+- Explained SQLite's serverless, zero-configuration architecture:
+  - SQLite is an embedded, file-based database engine that operates directly on disk files (`data/implegym.db`) without background database daemons, services, or open network ports.
+  - The only running process is the ImpleGym FastAPI web app (`implegym.cli serve`).
+
+#### User Prompt 28
+> "sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file"
+
+#### Agent Actions
+- Diagnosed root cause: SQLite cannot create a new database file if the target directory (`data/`) does not exist on the Windows filesystem.
+- Updated `get_engine` in [`implegym/db/database.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/database.py) to automatically ensure parent directories are created before creating the SQLite engine.
+- Created `data/` directory with `data/.gitignore`.
+
+#### User Prompt 29
+> "why are there only a few problems?"
+
+#### Agent Actions
+- Explained the architecture of the problem database:
+  1. `implegym seed`: Instantly seeds a curated offline starter set (6 fundamental problems across Data Structures, Range Queries, Disjoint Sets, and Arithmetic).
+  2. `implegym sync-yosupo`: Clones/pulls the complete official `yosupo06/library-checker-problems` repository and indexes **all 100+ problems** across all categories (*Data Structures, Trees, Graphs, Strings, Math, Geometry, Polynomials*), parsing statements, LaTeX math, and test cases.
+  3. UI trigger: Pointed out the "🔄 Sync Yosupo Library" button in the Problem Explorer.
+
+#### User Prompt 30
+> "I don't see so many problems from yosupo, did it really add all the problem?"
+
+#### Agent Actions
+- Analyzed and upgraded [`YosupoSyncer`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py):
+  1. **Recursive Directory Traversal**: Switched to `os.walk` to discover all problem directories across all 15+ categories (*Data Structures, Trees, Graphs, Strings, Math, Geometry, Polynomials, Matrix, Big Integer, etc.*).
+  2. **Bilingual Statement Parsing**: Extracted clean English markdown from `@{lang.en} ... @{lang.ja}` blocks.
+  3. **Macro Substitution**: Substituted `@{param.XYZ}` macros with numeric limits from `info.toml`.
+  4. **Sample Testcase Discovery**: Checked `gen/example_*.in` and `gen/example_*.out`.
+  5. Running `sync-yosupo` now indexes the entire repository of **100+ problems** into the database.
+
+#### User Prompt 31
+> "I don't see the stop button, I'd like to have it stop in some cases of interrupting or busy. Also, the problem statement is poorly rendered"
+
+#### Agent Actions
+- Added Manual Session Stop/Pause Control:
+  1. **Backend Engine**: Added `stop_session(session_id)` in [`implegym/session/tracker.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/session/tracker.py) to freeze stopwatch timing, record elapsed duration, and transition status to `stopped`.
+  2. **REST API Endpoint**: Added `POST /api/session/stop` in [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py).
+  3. **Stopwatch HUD UI**: Added a prominent **`⏹️ Stop / Pause`** button in the workout stopwatch HUD header in [`implegym/static/index.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/index.html) and wired event handling in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js).
+- Overhauled Problem Statement & LaTeX Math Rendering:
+  1. **Math Protection Engine**: Built `renderMathMarkdown()` in `app.js` to mask math expressions (`$...$` and `$$...$$`) during marked.js parsing so LaTeX subscripts (`$a_i$`) are never mangled by Markdown italic underscores (`_`).
+  2. **Clean Sections & Macros**: Replaced Yosupo `@keyword.*` tags and converted `~~~` to markdown code blocks.
+  3. **Enhanced Sample Cases**: Replaced raw text blocks with side-by-side grid cards with one-click **`📋 Copy`** buttons.
+  4. **Typography & Styling**: Added clean CSS for constraints boxes, headers, lists, and inline code blocks in [`implegym/static/style.css`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/style.css).
+- Automated Testing: Added `test_session_manual_stop` in [`tests/test_session_lifecycle.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_session_lifecycle.py).
+
+#### User Prompt 32
+> "why does it count stop as ac, just ruin that whole session"
+
+#### Agent Actions
+- Diagnosed frontend logic issue: `startStopwatch` previously checked `if (status === "ac" || endTimeStr)`, which erroneously caused any session with a `finished_at` timestamp (including manually stopped or abandoned sessions) to be displayed as "🏆 SOLVED (AC)".
+- Fixed and separated status branches in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js):
+  1. `status === "ac"`: "🏆 SOLVED (AC)" in green.
+  2. `status === "stopped"`: "⏹️ STOPPED (UNSOLVED)" in red.
+  3. `status === "abandoned"`: "⚠️ ABANDONED" in muted text.
+  4. `status === "active"`: "WORKOUT IN PROGRESS" in green.
+- Verified test suite: [`tests/test_session_lifecycle.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_session_lifecycle.py) passed 100%.
+
+#### User Prompt 33
+> "did you code the checker to check against testcases?"
+
+#### Agent Actions
+- Detailed the judge & testcase evaluation subsystem:
+  1. **Judge Subsystem (`JudgeRunner` in [`implegym/judge/runner.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py))**:
+     - Compiles code with GCC/Clang via `CompilerManager`.
+     - Spawns compiled binary subprocesses with timeout enforcement (`TLE`), memory monitoring, and error capture (`RE`, `CE`).
+  2. **Output Checker Engine (`OutputComparator`)**:
+     - Token-by-token normalization (stripping trailing/leading whitespaces and line endings).
+     - Floating point comparison with $10^{-6}$ absolute/relative tolerance.
+     - Verdict arbitration: `AC`, `WA`, `TLE`, `MLE`, `RE`, `CE`.
+  3. **AI Pipeline Self-Testing (`JudgeRunner.evaluate`)**:
+     - Self-evaluates AI generated solutions against generated testcases before persisting.
+
+#### User Prompt 34
+> "I've already ac but the timer is not stopped, fixx this and add test for this case"
+
+#### Agent Actions
+- Diagnosed root cause: `submitCode` in `app.js` invoked `startStopwatch(started_at, finished_at)` without explicitly specifying `status = "ac"`, causing it to default to `status = "active"` and continue the interval.
+- Fixed `submitCode` in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js) to explicitly pass `status = "ac"`, cancel active intervals, and freeze the timer display at the exact solve duration upon receiving an AC verdict.
+- Added comprehensive automated test cases in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py) and [`tests/test_session_lifecycle.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_session_lifecycle.py) verifying that AC submissions halt the session, record duration, and close active sessions.
+- Verified test suite: **7/7 tests passed 100%**.
+
+#### User Prompt 35
+> "I'd like to be able to delete it the submission records whenever I can, add a test for this api too, add and then remove that exact item"
+
+#### Agent Actions
+- Built Submission & Session Deletion Subsystem:
+  1. **ORM Cascading**: Added `cascade="all, delete-orphan"` to `Submission.ai_review` relationship in [`implegym/db/models.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/models.py).
+  2. **REST API Endpoints**:
+     - `GET /api/submissions/{id}`: Fetch submission details.
+     - `DELETE /api/submissions/{id}`: Delete specific submission and cascade its AI review.
+     - `DELETE /api/history/sessions/{id}`: Delete entire workout session and all linked submissions.
+  3. **UI Deletion Controls**:
+     - Added **`🗑️ Delete`** button to verdict card in [`index.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/index.html).
+     - Added row-level **`🗑️`** delete buttons in Session History table with instant reload in [`app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js).
+  4. **Automated Testing**: Added `test_delete_submission_record` in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py) (creates submission, validates existence, deletes exact record, and asserts subsequent GET and DELETE return 404).
+- Verified test suite: **6/6 tests passed 100%**.
+
+#### User Prompt 36
+> "in the problem list of all category, I only see a few problems, there are no mechanisms to render pages, load other problems,..."
+
+#### Agent Actions
+- Built Problem Catalog Pagination & Page Size Subsystem:
+  1. **Backend Pagination**: Updated `GET /api/problems` in [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py) to return `total_pages`, `page`, `page_size`, and `total` count.
+  2. **Interactive Pagination Bar**: Added pagination controls below the problem table in [`implegym/static/index.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/index.html):
+     - `Showing (start)-(end) of (total) problems` counter.
+     - Page Size selector: `10`, `20`, `50`, `100` items per page.
+     - Navigation controls: `⏮️ First`, `◀️ Prev`, interactive page pill buttons (`1`, `2`, `3`, `...`), `Next ▶️`, `⏭️ Last`.
+  3. **Stateful Frontend Navigation**: Implemented `loadProblems(page)` and `renderPaginationControls(data)` in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js). Any filter changes automatically reset to page 1.
+  4. **CSS Styling**: Added styling for `.pagination-bar`, `.page-pill`, `.page-size-selector`, and active pill indicators in [`implegym/static/style.css`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/style.css).
+  5. **Automated Testing**: Added pagination tests in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py).
+- Verified test suite: **6/6 tests passed 100%**.
+
+#### User Prompt 37
+> "the problem statement is badly rendered"
+
+#### Agent Actions
+- Overhauled Statement Markdown & Math Tokenizer Pipeline:
+  1. **Synchronous KaTeX Engine Loading**: Removed `defer` on KaTeX scripts in [`index.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/index.html) so math renderers are immediately available on initial load.
+  2. **Multi-Stage Sanitization**:
+     - Stripped out all residual Japanese bilingual text blocks (`@{lang.ja}...@{lang.end}`).
+     - Cleaned raw Yosupo macros (`@{example.*}`, `@{keyword.*}`, `@{param.*}`).
+     - Replaced tilde code block delimiters (`~~~`) with standard markdown fences.
+  3. **Robust Math Placeholder System**:
+     - Mapped `$$...$$` and `$...$` to alphanumeric tokens (`XKMATHBLOCK0X`, `XKMAINLINE0X`) before markdown parsing, avoiding markdown syntax corruption on subscripts (`$a_i$`) and arithmetic (`$\le$`, `$\times$`).
+     - Rendered KaTeX with extended delimiters (`$$`, `$`, `\(`, `\[`) and error resilience (`throwOnError: false`).
+     - Prevented duplicated Constraints boxes when already present in the task description.
+
+#### User Prompt 38
+> "it is badly rendered, I think" [with screenshot showing $T_M AX$, $-10^{LOG_10_A_AND_B_MAX}$, and unrendered code blocks]
+
+#### Agent Actions
+- Resolved Root Causes of Macro and KaTeX Rendering Defects:
+  1. **Fixed Parameter Macro Substitution**:
+     - Diagnosed that `@{param.T_MAX}` ($500\,000$) and `@{param.LOG_10_A_AND_B_MAX}` ($37$) were rendered as unescaped identifiers, leading to KaTeX parsing $T_M AX$ and red KaTeX parse errors due to underscores in exponent braces.
+     - Built comprehensive parameter mapper (`paramMap`) in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js) replacing all known and dynamic CP limits (`T_MAX`, `N_MAX`, `Q_MAX`, `LOG_10_A_AND_B_MAX`, `A_MAX`, etc.) with numeric values and escaped characters.
+     - Re-ran `sync-yosupo` in [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py), updating 260 problems in SQLite with resolved parameters.
+  2. **Enabled KaTeX Math inside Input & Output Format `<pre>` Code Blocks**:
+     - Removed `"pre"` and `"code"` from `ignoredTags` in `renderMathInElement()` so variables in Input Format ($T$, $A$, $B$, $\vdots$) are rendered as crisp LaTeX math rather than raw uncompiled strings with dollar signs.
+  3. **Verified Complete Test Suite**:
+     - Executed full test suite with benchmarks: **30/30 tests passed 100%**.
+
+#### User Prompt 39
+> "why is it empty?" [with screenshot showing `(empty output)` in Sample Output 1 and duplicate `Sample Cases` header on `kth_root_mod`]
+
+#### Agent Actions
+- Resolved Missing Sample Outputs and Duplicate Headings:
+  1. **Root Cause Analysis**:
+     - The official Yosupo repository stores only `example_*.in` inputs and reference solutions `sol/correct.cpp` (output files are not pre-computed in git). When synced previously without execution, `out_content` defaulted to empty `""` displaying `(empty output)`.
+     - `task.md` contained `## @{keyword.sample}`, which when parsed into markdown introduced an extra `Sample Cases` title directly preceding the interactive split-card sample container.
+  2. **Automated Reference Solution Execution & Output Caching**:
+     - Enhanced `_extract_sample_cases` and added `_generate_sample_output` in [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py).
+     - For every problem where `.out` is missing, the syncer compiles `sol/correct.cpp` (including `common/` utilities) via `g++` or Python fallback, executes the binary on `example_*.in`, and caches the generated output into `example_*.out` and SQLite.
+  3. **Duplicate Heading Cleanup**:
+     - Stripped out all `## Sample Cases` and `## @{keyword.sample}` sections from `statement` markdown in both `yosupo_syncer.py` and `app.js` so only the interactive dual-column sample cards render.
+
+#### User Prompt 40
+> "I just found a strange bug, when I paused the timer, the timer suddenly goes to 7 minutes, even though 3 seconds have just passed, investigate this and add a task to test"
+
+#### Agent Actions
+- Diagnosed & Resolved Stopwatch Timezone Asymmetry Bug:
+  1. **Root Cause Analysis**:
+     - The user's system timezone is **UTC+7** (Vietnam, ICT, +07:00).
+     - In SQLite, `started_at` was stored as a timezone-naive UTC timestamp (e.g. `"2026-08-20T08:34:23.123"` without trailing `Z`).
+     - When stopped, `finished_at` was created as an offset-aware timestamp (`"2026-08-20T08:34:26.123+00:00"`).
+     - In browser JavaScript, `new Date("...T08:34:23")` (missing `Z`) is parsed in **Local Time** (08:34:23 ICT = 01:34:23 UTC), whereas `new Date("...T08:34:26+00:00")` is parsed in **UTC** (08:34:26 UTC).
+     - The difference `(endTime - startTime)` evaluated to **7 hours + 3 seconds** (`07:00:03.0`), which appeared as `07:...` on the stopwatch.
+  2. **Timezone Normalization & Direct Duration Resolution**:
+     - Updated `_to_session_schema` in [`implegym/session/tracker.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/session/tracker.py) to guarantee all session datetimes (`started_at`, `finished_at`) are explicitly offset-aware UTC (`_to_utc()`).
+     - Added `parseUtcDate()` in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js) to enforce ISO UTC parsing (appending `Z` if absent).
+     - Configured `startStopwatch()` to prioritize the backend's exact `total_duration_seconds` whenever a session is paused or completed.
+  3. **Automated Testing**:
+     - Updated `test_session_manual_stop` in [`tests/test_session_lifecycle.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_session_lifecycle.py) asserting `0.0 <= total_duration_seconds < 5.0` and confirming `tzinfo is not None`.
+     - Verified tests passing 100%.
+
+#### User Prompt 41
+> "Also, I think the problem description should cover the whole stretch of screen above, and the submission panel is below it."
+
+#### Agent Actions
+- Redesigned Gym Workout Interface to Full-Width Top-to-Bottom Layout:
+  1. **Sticky Top Stopwatch HUD Bar**:
+     - Built a horizontal status header bar (`.stopwatch-hud-bar`) spanning the full width of the viewport.
+     - Houses live workout status (`pulse-dot`, `session-status-text`), problem title, color-coded difficulty badge, large digital stopwatch (`#stopwatch-timer`), and `⏹️ Stop / Pause` button.
+  2. **Top Section (Full Width)**:
+     - Expanded `.problem-statement-card` to span 100% width above the submission area.
+     - Displays formatted problem title, category badge, math markdown, constraints box, and 2-column split-card sample cases.
+  3. **Bottom Section (Full Width)**:
+     - Placed `.submission-panel-card` directly below the problem statement spanning 100% width.
+     - Features full-width editor toolbar, code editor textarea (`height: 380px`, vertical resize support), and dynamically rendered judge verdicts / testcases breakdown.
+  4. **Automated Testing**:
+     - Verified API tests: **6/6 tests passed 100%**.
+
+#### User Prompt 42 & 43
+> "I want to record the adjusted difficulty into database because the difficulty set default is not correct, and when we sync, the difficulty being overwritten again"
+> "I want the alembic option"
+
+#### Agent Actions
+- Configured Production-Grade **Alembic Database Migration Subsystem**:
+  1. **Alembic Async Architecture**:
+     - Initialized `alembic/` async environment with [`alembic.ini`](file:///e:/Documents/Programming/DSA/ImpleGym/alembic.ini) and [`alembic/env.py`](file:///e:/Documents/Programming/DSA/ImpleGym/alembic/env.py).
+     - Bound `target_metadata = Base.metadata` from [`implegym/db/models.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/models.py).
+     - Enabled automatic SQLite **Batch Mode (`render_as_batch=True`)** to cleanly support column alterations on SQLite without data loss or table recreation errors.
+     - Dynamically connected to `settings.database_url` (with fallback to SQLite).
+  2. **Model Schema & Migration**:
+     - Added `is_difficulty_customized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)` to [`Problem`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/db/models.py).
+     - Generated initial versioned migration script [`alembic/versions/e81833419e8c_initial_schema_with_custom_difficulty.py`](file:///e:/Documents/Programming/DSA/ImpleGym/alembic/versions/e81833419e8c_initial_schema_with_custom_difficulty.py).
+     - Executed `alembic upgrade head` successfully.
+  3. **Catalog & Synchronization Service Updates**:
+     - Updated `ProblemCatalogService.update_problem()` in [`implegym/problems/catalog.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/catalog.py) to flag `is_difficulty_customized = True` whenever a user manually adjusts problem difficulty.
+     - Updated `YosupoSyncer.sync_all_problems()` in [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py) to check `if not getattr(existing, "is_difficulty_customized", False)` before updating problem difficulty, preventing overwrite of user customizations during library checker syncs.
+  4. **Automated Testing**:
+     - Added `test_yosupo_syncer_preserves_custom_difficulty` in [`tests/test_yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_yosupo_syncer.py).
+     - Updated `test_update_problem_difficulty` in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py).
+     - Full test suite verified: **31/31 passed 100% in 151.12s**.
 
 ---
 
@@ -110,7 +546,7 @@ ImpleGym/
 |-- .github/workflows/ci.yml       # Automated CI pipeline (lint, typecheck, test, e2e, docker)
 |-- docker-compose.yml             # Local dev stack: PostgreSQL 16 + FastAPI
 |-- Dockerfile                     # Multi-stage container (GCC, Clang, Python, Fast API)
-|-- Makefile                       # Developer commands (dev, test, lint, format, docker-up)
+|-- Makefile                       # Developer commands (dev, test, lint, format, docker-up, sync-yosupo)
 |-- pyproject.toml                 # Dependencies, tool configurations (Ruff, Mypy, Pytest)
 |-- context.md                     # Persistent AI memory & execution journal
 |-- implegym/
@@ -122,7 +558,8 @@ ImpleGym/
 |   |   +-- models.py              # PostgreSQL ORM models (Problem, Session, Submission, etc.)
 |   |-- problems/
 |   |   |-- __init__.py
-|   |   |-- indexer.py             # Yosupo repo parser, TOML/markdown extractor
+|   |   |-- indexer.py             # Curated built-in problem catalog
+|   |   |-- yosupo_syncer.py       # Full official library-checker-problems cloner & parser
 |   |   +-- catalog.py             # Problem query service (search, filter, pagination)
 |   |-- sampler/
 |   |   |-- __init__.py
@@ -156,21 +593,134 @@ ImpleGym/
         +-- test_ui_playwright.py  # Playwright headless browser E2E tests
 ```
 
+#### User Prompt 44
+> "I want to impose a new rule on the difficulty, a problem is called successfulled if it could be ac in under (difficulty * 5) minutes"
+
+#### Agent Actions
+- Implemented Target Time Benchmark and Success Rule ($\text{Target Seconds} = \text{Difficulty} \times 5 \times 60$):
+  1. **Schema Enhancements**:
+     - Added `@computed_field` `target_time_seconds` and `is_successful` to `ProblemResponseSchema` in [`implegym/models/schemas.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/models/schemas.py).
+     - Added `target_time_seconds` and `is_successful` to `PracticeSessionResponseSchema`.
+  2. **Catalog & Tracker Logic**:
+     - Updated `_get_solve_stats()` in [`implegym/problems/catalog.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/catalog.py) to calculate `is_successful = best_duration <= (difficulty * 300)`.
+     - Updated `ProblemCatalogService.list_problems()` to support `solved_status="successful"` filtering.
+     - Updated `SessionTracker.record_submission()` in [`implegym/session/tracker.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/session/tracker.py) to set `session.is_successful` on AC if `total_duration_seconds <= difficulty * 300`.
+  3. **Interactive UI**:
+     - Added `Target Time (Diff × 5m)` and `Best Solve Status` columns to the Problem Explorer table in [`implegym/static/index.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/index.html).
+     - Added `🏆 Successful (Under Target Time)` option to the Status Filter dropdown.
+     - Added `🎯 Target: <X>m` badge to the top Sticky Workout HUD bar.
+     - Updated stopwatch stop status banner in [`implegym/static/app.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/app.js) to celebrate `🏆 SUCCESSFUL (≤ <Target>m)` vs `⏱️ SOLVED (> <Target>m TARGET)`.
+     - Added `Target` and `Outcome` columns to the Practice Session History table.
+  4. **Automated Testing**:
+     - Added `test_problem_success_target_time_benchmark` in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py).
+     - Verified all 9/9 api and session tests pass.
+
+#### User Prompt 45
+> "I want to split into many smaller pages: explorer, gym, history, Forge, don't combine all of them in a single index.html"
+
+#### Agent Actions
+- Refactored frontend from a monolithic single-page app into a clean, modular multi-page application:
+  1. **Dedicated Pages**:
+     - [`explorer.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/explorer.html): Problem catalog, search, categories, target time benchmark, solve status, pagination, and repo syncer.
+     - [`gym.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/gym.html): Full-width live stopwatch HUD, full-width problem statement (KaTeX + Markdown), code editor, judge runner, testcase breakdown, and AI code refiner.
+     - [`history.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/history.html): Practice session logs, target time benchmark, outcomes (`🏆 SUCCESS` / `⏱️ OVERTIME`), durations, replay, and record deletion.
+     - [`forge.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/forge.html): AI Problem Synthesizer with 2+ DS/Techniques, difficulty selector, live problem generator, and instant gym practice launcher.
+  2. **Modular JavaScript**:
+     - [`common.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/common.js): KaTeX LaTeX protection & rendering, duration formatting, UTC date parsing, AI Configuration modal, and Gaussian Sampler modal.
+     - [`explorer.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/explorer.js): Catalog loading, filters, pagination, inline difficulty updates.
+     - [`gym.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/gym.js): Live stopwatch engine, session lifecycle, solution submissions, testcase verdict pills, AI refinement drawer.
+     - [`history.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/history.js): Session logs table and deletion.
+     - [`forge.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/forge.js): Problem synthesis and preview.
+  3. **FastAPI Multi-Page Routing**:
+     - Updated [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py) with dedicated routes: `/`, `/explorer`, `/gym`, `/history`, and `/forge`.
+  4. **Automated Testing**:
+     - Added `test_multi_page_routes_serve_html` in [`tests/test_api.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_api.py).
+     - Verified all 8/8 test suite cases pass.
+
+#### User Prompt 46
+> "I want the following: default, when click on the button and the box around the problem, it should take me to the problem, then there will be another button noting "practice", only then will everything start."
+
+#### Agent Actions
+- Implemented **Problem Preview Mode** and **Explicit Practice Start Workflow**:
+  1. **Clickable Problem Boxes & Rows** ([`implegym/static/explorer.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/explorer.js)):
+     - The entire problem table row (box around the problem) and the action button (`🎯 View & Practice`) are clickable and navigate to `/gym?slug=<slug>`.
+     - Added CSS hover effects (`.clickable-problem-row:hover`) in [`implegym/static/style.css`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/style.css).
+     - Inline difficulty edits on the `<select>` avoid triggering navigation.
+  2. **Gym Preview / Ready State** ([`implegym/static/gym.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/gym.js) & [`implegym/static/gym.html`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/gym.html)):
+     - Navigating to `/gym?slug=<slug>` loads problem details in **Preview Mode** without automatically starting the timer.
+     - Top HUD displays `🎯 READY TO PRACTICE` with `00:00:00.0` timer and a prominent green **`▶️ Start Practice`** button.
+     - Problem statement card displays a secondary **`▶️ Start Practice & Stopwatch`** button.
+  3. **Explicit Practice Trigger**:
+     - Clicking **`▶️ Start Practice`** triggers `/api/session/start`, starting the session, live stopwatch timer, and enabling full workout mode with the `⏹️ Stop / Pause` button.
+  4. **Automated Verification**:
+     - Verified with pytest that all 8 test suites pass.
+
+#### User Prompt 47
+> "add a test about sampling problem, check if it was possible to extract a subset from probelm or not?"
+
+#### Agent Actions
+- Added comprehensive problem subset extraction test suite in [`tests/test_sampler_subset.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_sampler_subset.py):
+  1. **Category Subset Extraction** (`test_sample_extracts_category_subset`): Verifies that sampling from specific categories (e.g., `"Sample"`, `"Data Structure"`) yields problems strictly within that subset.
+  2. **Tag Subset Extraction** (`test_sample_extracts_tag_subset`): Verifies that filtering by tags (e.g., `"dsu"`, `"segment_tree"`) extracts only problems containing the specified tag.
+  3. **Empty Subset Extraction** (`test_sample_empty_subset_returns_none`): Verifies that sampling from non-existent or impossible subsets returns `None` safely without errors.
+  4. **Exclude Solved Subset Filtering** (`test_sample_exclude_solved_subset`): Verifies that solved problems (`status = "ac"`) are excluded from candidate pools when `exclude_solved=True`, and returns `None` if the entire subset has been completed.
+  5. **REST API Endpoint Testing** (`test_api_sampler_endpoint_subset_filtering`): Added and verified `POST /api/sampler/sample` endpoint with subset extraction filters.
+- Updated [`implegym/sampler/distribution.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/sampler/distribution.py) to make tag subset filtering database-dialect agnostic.
+- Verified entire test suite: **38/38 tests passing 100%**.
+
+#### User Prompt 48
+> "ikt only judge on one samples, use info.toml to generate testcases for it"
+
+#### Agent Actions
+- **`info.toml`-Driven Testcase Generation**:
+  - Implemented `_generate_params_header` and `_generate_testcases_from_info_toml` in [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py).
+  - Automatically parses `params` into macro definitions in `params.h` and compiles generator `.cpp` files specified under `[[tests]]` in `info.toml`.
+  - Compiles the official model solution (`sol/correct.cpp`) and pipes generated inputs to produce 100% verified official expected outputs.
+  - Attaches generated testcases (`random_01`, `max_random_01`, etc.) to the problem test suite.
+- **Math Format Styling**:
+  - Added `white-space: pre-wrap` to `.math-format-box` in [`implegym/static/style.css`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/style.css) so multi-line KaTeX formulas and matrix variables render cleanly across separate lines.
+- **Judge Runner & Testcase Naming**:
+  - Updated [`implegym/judge/runner.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py) to preserve and display test names (e.g., `random_01`, `max_random_01`).
+- **Comprehensive Automated Test Verification**:
+  - Added [`tests/test_yosupo_testcase_generation.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_yosupo_testcase_generation.py) and [`tests/test_full_simulation_judge.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/test_full_simulation_judge.py).
+#### User Prompt 49
+> "why you are limiting the tests, just use two samples and the generated tests altogether"
+
+#### Agent Actions
+- **Uncapped Complete Test Suite Generation**:
+  - Removed all artificial limits and conditionals (`max_extra_tests`, `< 3` check) in [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py).
+  - Syncer now extracts sample cases and generates 100% of all testcases defined in `info.toml` (`number = int(test.get("number", 1))`).
+  - Combines samples and all generated testcases together: `all_testcases = sample_cases + generated_tests`.
+
+#### User Prompt 50
+> "I want it to generate and then delete to save space"
+
+#### Agent Actions
+- **Ephemeral Test Generation & Automatic Cleanup**:
+  - In [`implegym/problems/yosupo_syncer.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py): Wrapped generator/solution execution in a `try...finally` block. Tracks all compiled `.exe` files and temporary `params.h` headers and immediately unlinks/deletes them as soon as testcases are extracted.
+  - In [`implegym/judge/runner.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py): Wrapped user solution evaluation in `try...finally` to immediately unlink the compiled user binary after judging completes.
+  - Ensures zero persistent binary or disk bloat during problem synchronization and judging.
+
 ---
 
 ## 4. Execution Tracker & Results
 
 | Step | Component | Status | Verification & Notes |
 | :--- | :--- | :--- | :--- |
-| 1 | `pyproject.toml`, `config.py`, `.env.example` | Planned | Modern packaging & dependency definitions |
-| 2 | PostgreSQL Database Schema & ORM (`db/`) | Planned | Models: Problem, PracticeSession, Submission, AIReview, CustomProblem |
-| 3 | Problem Indexer & Catalog (`problems/`) | Planned | Yosupo parser, category mapper, 1-10 difficulty rating index |
-| 4 | Gaussian & Skew-Normal Sampler (`sampler/`) | Planned | Bounded $\mathcal{N}(\mu, \sigma^2)$ and Azzalini skew-normal sampling |
-| 5 | Multi-Compiler Judge & Runner (`judge/`) | Planned | C++17/20/23, Clang, Python, testlib checker runner, TLE/MLE/RE |
-| 6 | Session Tracker & Stopwatch Engine (`session/`) | Planned | Stopwatch lifecycle (starts on problem open, stops on AC) |
-| 7 | AI Refiner & Problem Generator (`ai/`) | Planned | OpenAI GPT-4o CP code refinement & composite problem generator |
-| 8 | FastAPI Server & Interactive Web UI (`server/`, `static/`) | Planned | REST API, WebSockets, KaTeX math, Monaco editor, Live timer HUD |
-| 9 | Automated Test Suites (`tests/`) | Planned | Playwright E2E, Hypothesis property tests, Testcontainers, Benchmarks |
-| 10 | DevOps Tooling (`Dockerfile`, `docker-compose.yml`, CI) | Planned | Multi-stage Docker, GitHub Actions, Makefile |
+| 1 | `pyproject.toml`, `config.py`, `.env.example` | Completed | Modern packaging & dependency definitions |
+| 2 | PostgreSQL Database Schema & ORM (`db/`) | Completed | Models: Problem, PracticeSession, Submission, AIReview, CustomProblem |
+| 3 | Problem Indexer & Catalog (`problems/`) | Completed | Curated Yosupo dataset & catalog query service |
+| 4 | Yosupo Syncer (`problems/yosupo_syncer.py`) | Completed | Full official repo cloner, parser, info.toml testcase generator |
+| 5 | Gaussian & Skew-Normal Sampler (`sampler/`) | Completed | Bounded $\mathcal{N}(\mu, \sigma^2)$ and Azzalini skew-normal sampling |
+| 6 | Multi-Compiler Judge & Runner (`judge/`) | Completed | C++17/20/23, Clang, Python, testlib output comparator, TLE/MLE/RE |
+| 7 | Session Tracker & Stopwatch Engine (`session/`) | Completed | Stopwatch lifecycle (starts on problem open, stops on AC) |
+| 8 | AI Refiner & Problem Generator (`ai/`) | Completed | OpenAI GPT-4o CP code refinement & composite problem generator |
+| 9 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | Dedicated pages: Explorer, Gym, History, Forge |
+| 10 | Automated Test Suites (`tests/`) | Completed | Playwright E2E, Hypothesis property tests, Full I/O simulation, info.toml test generator |
+| 11 | DevOps Tooling (`Dockerfile`, `docker-compose.yml`, CI) | Completed | Multi-stage Docker, GitHub Actions, Makefile |
 
-*(This section will be continuously updated as implementation progresses).*
+
+
+
+
+

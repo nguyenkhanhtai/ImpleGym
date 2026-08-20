@@ -59,6 +59,81 @@ def scan(
 
 
 @app.command()
+def sync_yosupo(
+    repo_dir: Optional[Path] = typer.Option(None, "--repo-dir", "-d", help="Custom local repo path to clone or sync into")
+) -> None:
+    """Clone or pull official yosupo06/library-checker-problems and sync all problems to PostgreSQL."""
+    async def _sync() -> None:
+        await init_db()
+        async with session_scope() as session:
+            from implegym.problems.yosupo_syncer import YosupoSyncer
+            syncer = YosupoSyncer(session, repo_dir=repo_dir)
+            console.print("[bold cyan]Fetching & synchronizing official Yosupo Library Checker problems...[/bold cyan]")
+            count = await syncer.sync_all_problems()
+            console.print(f"[bold green]Successfully synchronized {count} new/updated Yosupo problems into database![/bold green]")
+
+    asyncio.run(_sync())
+
+
+@app.command("set-difficulty")
+def set_difficulty(
+    slug: str = typer.Argument(..., help="Problem slug identifier, e.g. aplusb"),
+    difficulty: int = typer.Argument(..., help="New difficulty rating between 1 and 10"),
+) -> None:
+    """Manually update difficulty rating for a problem."""
+    async def _run() -> None:
+        await init_db()
+        async with session_scope() as session:
+            catalog = ProblemCatalogService(session)
+            try:
+                updated = await catalog.update_problem(slug, {"difficulty": difficulty})
+                typer.echo(f"✅ Successfully updated '{updated.slug}' difficulty to {updated.difficulty}/10")
+            except Exception as ex:
+                typer.echo(f"❌ Failed to update problem difficulty: {ex}")
+
+    asyncio.run(_run())
+
+
+@app.command("sync-db")
+def sync_db(
+    source: str = typer.Option(
+        "sqlite+aiosqlite:///data/implegym.db",
+        "--source",
+        "-s",
+        help="Source database URL (e.g. SQLite path)",
+    ),
+    target: str = typer.Option(
+        None,
+        "--target",
+        "-t",
+        help="Target database URL (defaults to DATABASE_URL in config/env)",
+    ),
+) -> None:
+    """Synchronize all problems, sessions, submissions, and AI reviews between two databases."""
+    from implegym.db.syncer import DatabaseSyncService
+    target_url = target or settings.database_url
+
+    async def _run() -> None:
+        typer.echo(f"🔄 Starting database synchronization...")
+        typer.echo(f"   Source: {source}")
+        typer.echo(f"   Target: {target_url}")
+        syncer = DatabaseSyncService(source_url=source, target_url=target_url)
+        try:
+            results = await syncer.sync_data()
+            typer.echo("✅ Database synchronization complete:")
+            for k, v in results.items():
+                typer.echo(f"   - {k}: {v}")
+        except Exception as ex:
+            if "5432" in str(ex) or "connect" in str(ex).lower():
+                typer.echo(f"❌ Synchronization failed: Target PostgreSQL server is not running on port 5432.")
+                typer.echo(f"   Tip: Start PostgreSQL via Docker with 'docker-compose up -d postgres' or check your DATABASE_URL.")
+            else:
+                typer.echo(f"❌ Synchronization failed: {ex}")
+
+    asyncio.run(_run())
+
+
+@app.command()
 def list_probs() -> None:
     """List indexed problems in terminal."""
     async def _list() -> None:

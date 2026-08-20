@@ -28,17 +28,20 @@ async def test_code_refiner_fallback_structure(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_problem_generator_synthesis(db_session: AsyncSession) -> None:
-    """Test composite problem generator synthesizes and indexes a problem into database."""
+async def test_problem_generator_synthesis_and_self_test(db_session: AsyncSession) -> None:
+    """Test composite problem generator compiles generator, creates tests, and verifies solution."""
     generator = ProblemGeneratorService(db_session)
     req = GenerateProblemRequest(
         topic_1="Fenwick Tree",
-        topic_2="Range Minimum Query",
-        target_difficulty=7,
+        topic_2="Range Sum",
+        target_difficulty=4,
     )
     new_prob = await generator.generate_problem(req)
     assert new_prob.id is not None
     assert "ai_" in new_prob.slug
-    assert new_prob.difficulty == 7
+    assert new_prob.difficulty == 4
     assert new_prob.source == "gpt_generated"
-    assert len(new_prob.sample_cases) > 0
+    # Verify that generator produced multiple test cases beyond initial sample
+    assert len(new_prob.sample_cases) >= 2
+    # Verify self_test tag is present
+    assert any("self_test_ac" in tag for tag in new_prob.tags)

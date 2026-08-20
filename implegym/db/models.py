@@ -55,6 +55,7 @@ class Problem(Base):
     memory_limit_mb: Mapped[int] = mapped_column(Integer, default=1024, nullable=False)
     tags: Mapped[List[str]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)
     source: Mapped[str] = mapped_column(String(64), default="yosupo", nullable=False)
+    is_difficulty_customized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -116,7 +117,9 @@ class Submission(Base):
 
     problem: Mapped["Problem"] = relationship("Problem", back_populates="submissions")
     session: Mapped[Optional["PracticeSession"]] = relationship("PracticeSession", back_populates="submissions")
-    ai_review: Mapped[Optional["AIReview"]] = relationship("AIReview", back_populates="submission", uselist=False)
+    ai_review: Mapped[Optional["AIReview"]] = relationship(
+        "AIReview", back_populates="submission", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class AIReview(Base):

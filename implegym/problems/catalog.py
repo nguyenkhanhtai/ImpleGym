@@ -52,12 +52,13 @@ class ProblemCatalogService:
         # Enrich with solved status and best time
         enriched: List[ProblemResponseSchema] = []
         for prob in problems:
-            solved, best_time = await self._get_solve_stats(prob.id)
+            solved, successful, best_time = await self._get_solve_stats(prob.id, prob.difficulty)
+            if params.solved_status == "successful" and not successful:
+                continue
             if params.solved_status == "solved" and not solved:
                 continue
             if params.solved_status == "unsolved" and solved:
                 continue
-
             schema = ProblemResponseSchema(
                 id=prob.id,
                 slug=prob.slug,
@@ -73,8 +74,10 @@ class ProblemCatalogService:
                 memory_limit_mb=prob.memory_limit_mb,
                 tags=prob.tags,
                 source=prob.source,
+                is_difficulty_customized=getattr(prob, "is_difficulty_customized", False),
                 created_at=prob.created_at,
                 is_solved=solved,
+                is_successful=successful,
                 best_time_seconds=best_time,
             )
             enriched.append(schema)
@@ -89,7 +92,7 @@ class ProblemCatalogService:
         if not prob:
             return None
 
-        solved, best_time = await self._get_solve_stats(prob.id)
+        solved, successful, best_time = await self._get_solve_stats(prob.id, prob.difficulty)
         return ProblemResponseSchema(
             id=prob.id,
             slug=prob.slug,
@@ -105,10 +108,36 @@ class ProblemCatalogService:
             memory_limit_mb=prob.memory_limit_mb,
             tags=prob.tags,
             source=prob.source,
+            is_difficulty_customized=getattr(prob, "is_difficulty_customized", False),
             created_at=prob.created_at,
             is_solved=solved,
+            is_successful=successful,
             best_time_seconds=best_time,
         )
+
+    async def update_problem(
+        self, slug: str, update_data: Dict[str, Any]
+    ) -> Optional[ProblemResponseSchema]:
+        """Update problem properties (difficulty, title, category, tags)."""
+        stmt = select(Problem).where(Problem.slug == slug)
+        res = await self.session.execute(stmt)
+        prob = res.scalar_one_or_none()
+        if not prob:
+            return None
+
+        if "difficulty" in update_data and update_data["difficulty"] is not None:
+            prob.difficulty = int(update_data["difficulty"])
+            prob.is_difficulty_customized = True
+        if "title" in update_data and update_data["title"] is not None:
+            prob.title = update_data["title"]
+        if "category" in update_data and update_data["category"] is not None:
+            prob.category = update_data["category"]
+        if "tags" in update_data and update_data["tags"] is not None:
+            prob.tags = update_data["tags"]
+
+        await self.session.commit()
+        await self.session.refresh(prob)
+        return await self.get_by_slug(slug)
 
     async def get_all_categories(self) -> List[str]:
         """Get unique categories."""
@@ -116,8 +145,11 @@ class ProblemCatalogService:
         res = await self.session.execute(stmt)
         return [row[0] for row in res.all()]
 
-    async def _get_solve_stats(self, problem_id: int) -> Tuple[bool, Optional[float]]:
-        """Determine if problem has been ACed and find best solve duration."""
+    async def _get_solve_stats(
+        self, problem_id: int, difficulty: int
+    ) -> Tuple[bool, bool, Optional[float]]:
+        """Determine if problem has been ACed, whether it met target time (diff * 5 min), and best solve duration."""
+        target_seconds = difficulty * 5 * 60.0
         stmt = (
             select(PracticeSession.total_duration_seconds)
             .where(
@@ -132,7 +164,8 @@ class ProblemCatalogService:
         best_duration = res.scalar_one_or_none()
 
         if best_duration is not None:
-            return True, best_duration
+            is_successful = best_duration <= target_seconds
+            return True, is_successful, best_duration
 
         # Also check standalone AC submissions
         sub_stmt = (
@@ -142,4 +175,4 @@ class ProblemCatalogService:
         )
         sub_res = await self.session.execute(sub_stmt)
         ac_count = sub_res.scalar_one()
-        return (ac_count > 0), None
+        return (ac_count > 0), False, None

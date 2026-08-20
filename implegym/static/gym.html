@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ImpleGym - Problem Explorer</title>
+  <title>ImpleGym - Gym Workout & Stopwatch</title>
   <!-- KaTeX for Math Equations -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
@@ -22,8 +22,8 @@
         <span class="brand-badge">Yosupo Edition</span>
       </div>
       <nav class="nav-links">
-        <a href="/explorer" class="nav-tab active">🧭 Explorer</a>
-        <a href="/gym" class="nav-tab">🏋️ Gym</a>
+        <a href="/explorer" class="nav-tab">🧭 Explorer</a>
+        <a href="/gym" class="nav-tab active">🏋️ Gym</a>
         <a href="/history" class="nav-tab">📜 History</a>
         <a href="/forge" class="nav-tab">⚡ Forge</a>
       </nav>
@@ -36,81 +36,99 @@
     <!-- Main Content Area -->
     <main class="main-container">
       <section class="page-pane">
-        <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <h2>Problem Catalog</h2>
-            <p class="subtitle">Browse, filter, or manually pick implementation problems from Library Checker.</p>
-          </div>
-          <button id="btn-sync-yosupo" class="btn btn-primary btn-sm">🔄 Sync Official Yosupo Repo</button>
-        </div>
+        <div class="workout-full-layout">
+          
+          <!-- Top Section 1: Live Stopwatch & HUD Bar (Full Width) -->
+          <div class="stopwatch-hud-bar">
+            <div class="hud-left">
+              <div class="hud-status-wrapper">
+                <span class="pulse-dot" id="stopwatch-pulse" style="display: none;"></span>
+                <span id="session-status-text">NO ACTIVE SESSION</span>
+              </div>
+              <div class="hud-meta" id="stopwatch-meta">
+                <span>Problem: <b id="current-problem-title">None</b></span>
+                <span class="diff-badge diff-5" id="current-problem-diff-badge">Difficulty: <b id="current-problem-diff">-</b>/10</span>
+                <span class="target-badge" id="current-target-time" title="Success condition: AC in under Difficulty * 5 minutes">🎯 Target: <b>-</b></span>
+              </div>
+            </div>
 
-        <div class="filter-card">
-          <div class="filter-group">
-            <label for="search-input">Search</label>
-            <input type="text" id="search-input" placeholder="Search by title, keyword, slug...">
-          </div>
-          <div class="filter-group">
-            <label for="category-select">Category</label>
-            <select id="category-select">
-              <option value="">All Categories</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="difficulty-slider">Max Difficulty: <span id="difficulty-label">10</span>/10</label>
-            <input type="range" id="difficulty-slider" min="1" max="10" value="10">
-          </div>
-          <div class="filter-group">
-            <label for="status-select">Status</label>
-            <select id="status-select">
-              <option value="all">All Statuses</option>
-              <option value="successful">🏆 Successful (Under Target Time)</option>
-              <option value="solved">Solved (AC)</option>
-              <option value="unsolved">Unsolved</option>
-            </select>
-          </div>
-        </div>
+            <div class="hud-center">
+              <div class="stopwatch-display" id="stopwatch-timer">00:00:00.0</div>
+            </div>
 
-        <div class="table-container">
-          <table class="problem-table">
-            <thead>
-              <tr>
-                <th>Difficulty</th>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Target Time (Diff × 5m)</th>
-                <th>Best Solve Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="problem-table-body">
-              <!-- Dynamically populated -->
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination Controls Bar -->
-        <div class="pagination-bar" id="problem-pagination-bar">
-          <div class="pagination-info">
-            <span id="pagination-summary">Showing 0-0 of 0 problems</span>
-            <div class="page-size-selector">
-              <label for="page-size-select">Per page:</label>
-              <select id="page-size-select">
-                <option value="10">10</option>
-                <option value="20" selected>20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
+            <div class="hud-right" style="display: flex; gap: 0.5rem; align-items: center;">
+              <button id="btn-start-practice" class="btn btn-success btn-sm" style="display: none;" title="Start timer and begin workout">▶️ Start Practice</button>
+              <button id="btn-stop-session" class="btn btn-danger btn-sm" style="display: none;" title="Stop session if busy or interrupted">⏹️ Stop / Pause</button>
             </div>
           </div>
-          <div class="pagination-nav">
-            <button id="btn-page-first" class="btn btn-outline btn-sm" title="First Page">⏮️</button>
-            <button id="btn-page-prev" class="btn btn-outline btn-sm" title="Previous Page">◀️ Prev</button>
-            <div id="pagination-numbers" class="pagination-numbers">
-              <!-- Page number pills -->
+
+          <!-- Top Section 2: Full-Width Problem Description Card -->
+          <div class="problem-statement-card full-width-card">
+            <div class="statement-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <h2 id="stmt-title">Select a problem to start practicing</h2>
+                <span class="category-badge" id="stmt-category">-</span>
+              </div>
+              <button id="btn-start-practice-banner" class="btn btn-success" style="display: none; font-weight: 700;">▶️ Start Practice & Stopwatch</button>
             </div>
-            <button id="btn-page-next" class="btn btn-outline btn-sm" title="Next Page">Next ▶️</button>
-            <button id="btn-page-last" class="btn btn-outline btn-sm" title="Last Page">⏭️</button>
+            <div class="statement-body" id="stmt-body">
+              <p>Go to the <a href="/explorer" style="color: var(--accent-primary); font-weight: 600;">🧭 Problem Explorer</a> or click <b>🎲 Gaussian Sample</b> above to pick a problem and start your timer!</p>
+            </div>
+            <div class="statement-samples" id="stmt-samples"></div>
           </div>
+
+          <!-- Bottom Section: Full-Width Code Editor & Submission Panel -->
+          <div class="submission-panel-card full-width-card">
+            <div class="editor-card">
+              <div class="editor-toolbar">
+                <div class="tool-item">
+                  <label for="compiler-select">Compiler:</label>
+                  <select id="compiler-select">
+                    <!-- Populated from backend -->
+                  </select>
+                </div>
+                <div class="tool-item">
+                  <label for="compiler-flags">Flags:</label>
+                  <input type="text" id="compiler-flags" value="-O3">
+                </div>
+                <button id="btn-gen-tests" class="btn btn-outline-primary" style="font-size: 0.85rem;" title="Compile generators from info.toml and generate all testcases">⚡ Gen Tests</button>
+                <button id="btn-submit" class="btn btn-success">🚀 Submit Solution</button>
+              </div>
+              
+              <div class="code-area-wrapper">
+                <textarea id="code-editor" spellcheck="false" placeholder="// Write your C++ or Python solution here...
+#include <iostream>
+using namespace std;
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+    
+    return 0;
+}"></textarea>
+              </div>
+            </div>
+
+            <!-- Submission Verdict Card & Live Testcase Cards -->
+            <div class="verdict-container" id="verdict-container" style="display: none;">
+              <div class="verdict-header">
+                <h4>Submission Verdict: <span id="latest-verdict" class="verdict-badge">AC</span></h4>
+                <div class="verdict-stats">
+                  <span>⏱️ Time: <b id="verdict-time">0 ms</b></span>
+                  <span>💾 Memory: <b id="verdict-mem">0 KB</b></span>
+                  <button id="btn-refine-latest" class="btn btn-ai">✨ Refine with AI</button>
+                  <button id="btn-delete-submission" class="btn btn-danger btn-sm" title="Delete this submission record">🗑️ Delete</button>
+                </div>
+              </div>
+              <div class="testcases-list" id="testcases-list">
+                <!-- Live testcase items -->
+              </div>
+              <div class="error-log" id="compiler-error-log" style="display: none;">
+                <pre id="compiler-error-text"></pre>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
     </main>
@@ -196,9 +214,22 @@
         </div>
       </div>
     </div>
+
+    <!-- AI Refinement Drawer -->
+    <div id="ai-drawer" class="drawer-overlay" style="display: none;">
+      <div class="drawer-panel">
+        <div class="drawer-header">
+          <h3>✨ AI Code Refinement & CP Insights</h3>
+          <button id="btn-close-drawer" class="btn-close">&times;</button>
+        </div>
+        <div class="drawer-body" id="drawer-content">
+          <div class="loading-spinner">Analyzing implementation with AI...</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/static/common.js"></script>
-  <script src="/static/explorer.js"></script>
+  <script src="/static/gym.js"></script>
 </body>
 </html>

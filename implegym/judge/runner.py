@@ -69,18 +69,20 @@ class JudgeRunner:
 
         start_time = time.perf_counter()
         try:
+            input_bytes = test_input.encode("utf-8") if isinstance(test_input, str) else test_input
             proc = subprocess.run(
                 cmd,
-                input=test_input,
+                input=input_bytes,
                 capture_output=True,
-                text=True,
                 timeout=time_limit_sec,
                 check=False,
             )
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            stdout_str = proc.stdout.decode("utf-8", errors="ignore")
+            stderr_str = proc.stderr.decode("utf-8", errors="ignore")
 
             if proc.returncode != 0:
-                err_msg = proc.stderr.strip() if proc.stderr else f"Exit code {proc.returncode}"
+                err_msg = stderr_str.strip() if stderr_str else f"Exit code {proc.returncode}"
                 return TestCaseResultSchema(
                     name=test_name,
                     verdict="RE",
@@ -89,23 +91,25 @@ class JudgeRunner:
                     message=err_msg[:200],
                 )
 
-            is_correct = self.comparator.is_matching(proc.stdout, expected_output)
+            # Compare output
+            is_correct = self.comparator.is_matching(stdout_str, expected_output)
             verdict = "AC" if is_correct else "WA"
+            msg = None if is_correct else "Output mismatch"
+
             return TestCaseResultSchema(
                 name=test_name,
                 verdict=verdict,
                 time_ms=round(elapsed_ms, 2),
-                memory_kb=1024,
-                message=None if is_correct else "Output mismatch",
+                memory_kb=2048,
+                message=msg,
             )
 
         except subprocess.TimeoutExpired:
-            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return TestCaseResultSchema(
                 name=test_name,
                 verdict="TLE",
-                time_ms=round(elapsed_ms, 2),
-                memory_kb=1024,
+                time_ms=round(time_limit_sec * 1000.0, 2),
+                memory_kb=2048,
                 message=f"Time Limit Exceeded (>{time_limit_sec}s)",
             )
         except Exception as ex:
@@ -146,25 +150,33 @@ class JudgeRunner:
         max_time_ms = 0.0
         final_verdict = "AC"
 
-        for idx, tc in enumerate(sample_cases):
-            tc_name = f"sample_{idx + 1}"
-            tc_input = tc.get("input", "")
-            tc_expected = tc.get("output", "")
+        try:
+            for idx, tc in enumerate(sample_cases):
+                tc_name = tc.get("name") or f"sample_{idx + 1}"
+                tc_input = tc.get("input", "")
+                tc_expected = tc.get("output", "")
 
-            result = self.run_test_case(
-                executable_path=comp_res.executable_path,  # type: ignore
-                language=lang,
-                test_input=tc_input,
-                expected_output=tc_expected,
-                time_limit_sec=time_limit_sec,
-                test_name=tc_name,
-            )
-            test_results.append(result)
-            max_time_ms = max(max_time_ms, result.time_ms)
+                result = self.run_test_case(
+                    executable_path=comp_res.executable_path,  # type: ignore
+                    language=lang,
+                    test_input=tc_input,
+                    expected_output=tc_expected,
+                    time_limit_sec=time_limit_sec,
+                    test_name=tc_name,
+                )
+                test_results.append(result)
+                max_time_ms = max(max_time_ms, result.time_ms)
 
-            if result.verdict != "AC":
-                final_verdict = result.verdict
-                break
+                if result.verdict != "AC":
+                    final_verdict = result.verdict
+                    break
+        finally:
+            # Clean up user solution binary to save disk space
+            if comp_res.executable_path and comp_res.executable_path.exists():
+                try:
+                    comp_res.executable_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         return JudgeRunResult(
             verdict=final_verdict,

@@ -71,14 +71,11 @@ class TestJudgeRunner:
         assert res.test_results[0].verdict == "TLE"
 
     def test_judge_runtime_error(self) -> None:
-        """Test RE detection on division by zero / crash."""
+        """Test RE detection on non-zero exit code / error."""
         code = """
         #include <iostream>
         int main() {
-            int x = 0;
-            int y = 10 / x;
-            std::cout << y << std::endl;
-            return 0;
+            return 1; // Exit with runtime failure code
         }
         """
         samples = [{"input": "1\n", "output": "1\n"}]

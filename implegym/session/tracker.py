@@ -16,6 +16,15 @@ from implegym.models.schemas import (
 )
 
 
+def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Ensure datetime is offset-aware UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class SessionTracker:
     """Manages workout sessions, live stopwatch state, and submissions."""
 
@@ -39,7 +48,9 @@ class SessionTracker:
             s.status = "abandoned"
             s.finished_at = datetime.now(timezone.utc)
             if s.started_at:
-                s.total_duration_seconds = (s.finished_at - s.started_at).total_seconds()
+                s.total_duration_seconds = (
+                    _to_utc(s.finished_at) - _to_utc(s.started_at)
+                ).total_seconds()
 
         now = datetime.now(timezone.utc)
         new_session = PracticeSession(
@@ -69,6 +80,36 @@ class SessionTracker:
         if not active:
             return None
         return await self._to_session_schema(active)
+
+    async def stop_session(
+        self, session_id: Optional[int] = None
+    ) -> Optional[PracticeSessionResponseSchema]:
+        """Stop an active workout session manually."""
+        stmt = (
+            select(PracticeSession)
+            .options(selectinload(PracticeSession.problem), selectinload(PracticeSession.submissions))
+        )
+        if session_id:
+            stmt = stmt.where(PracticeSession.id == session_id)
+        else:
+            stmt = stmt.where(PracticeSession.status == "active").order_by(PracticeSession.id.desc()).limit(1)
+
+        res = await self.session.execute(stmt)
+        active_sess = res.scalar_one_or_none()
+        if not active_sess:
+            return None
+
+        now = datetime.now(timezone.utc)
+        active_sess.status = "stopped"
+        active_sess.finished_at = now
+        if active_sess.started_at:
+            active_sess.total_duration_seconds = (
+                _to_utc(now) - _to_utc(active_sess.started_at)
+            ).total_seconds()
+
+        await self.session.commit()
+        await self.session.refresh(active_sess, ["problem", "submissions"])
+        return await self._to_session_schema(active_sess)
 
     async def submit_code(
         self, req: SubmissionCreateRequest
@@ -103,10 +144,26 @@ class SessionTracker:
             active_res = await self.session.execute(active_stmt)
             practice_session = active_res.scalar_one_or_none()
 
-        # Run Judge Evaluation
+        # Ensure testcases are generated from info.toml and cached in the database
+        has_generated = any(
+            tc.get("name", "").startswith(("random", "max_random", "gen", "small", "edge", "test"))
+            for tc in (problem.sample_cases or [])
+        )
+        if not has_generated:
+            try:
+                from implegym.problems.yosupo_syncer import YosupoSyncer
+                syncer = YosupoSyncer(self.session)
+                synced_data = await syncer.sync_problem(problem.slug)
+                if synced_data and synced_data.get("sample_cases"):
+                    problem.sample_cases = synced_data["sample_cases"]
+                    await self.session.commit()
+            except Exception:
+                pass
+
+        # Run Judge Evaluation against full cached testcases
         run_res: JudgeRunResult = self.judge.evaluate(
             code=req.code,
-            sample_cases=problem.sample_cases,
+            sample_cases=problem.sample_cases or [],
             time_limit_sec=problem.time_limit,
             compiler_profile=req.compiler_profile,
             compiler_flags=req.compiler_flags,
@@ -137,8 +194,9 @@ class SessionTracker:
                 now = datetime.now(timezone.utc)
                 practice_session.finished_at = now
                 if practice_session.started_at:
+                    start_utc = _to_utc(practice_session.started_at)
                     practice_session.total_duration_seconds = (
-                        now - practice_session.started_at
+                        now - start_utc
                     ).total_seconds()
 
         await self.session.commit()
@@ -203,15 +261,22 @@ class SessionTracker:
             for sub in practice_session.submissions
         ]
 
+        target_time = prob.difficulty * 5 * 60.0 if prob else 1500.0
+        is_successful = None
+        if practice_session.status == "ac" and practice_session.total_duration_seconds is not None:
+            is_successful = practice_session.total_duration_seconds <= target_time
+
         return PracticeSessionResponseSchema(
             id=practice_session.id,
             problem_id=practice_session.problem_id,
             problem=prob_schema,
             status=practice_session.status,
             is_manual_selection=practice_session.is_manual_selection,
-            started_at=practice_session.started_at,
-            finished_at=practice_session.finished_at,
+            started_at=_to_utc(practice_session.started_at),
+            finished_at=_to_utc(practice_session.finished_at),
             total_duration_seconds=practice_session.total_duration_seconds,
+            target_time_seconds=target_time,
+            is_successful=is_successful,
             submission_count=practice_session.submission_count,
             submissions=submissions_schema,
         )

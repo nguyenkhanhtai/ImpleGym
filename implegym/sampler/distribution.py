@@ -54,11 +54,17 @@ class GaussianSampler:
         query = select(Problem)
         if config.category:
             query = query.where(func.lower(Problem.category) == config.category.strip().lower())
-        if config.tag:
-            query = query.where(Problem.tags.contains([config.tag.strip()]))
 
         res = await self.session.execute(query)
         candidates = list(res.scalars().all())
+
+        if config.tag:
+            tag_clean = config.tag.strip().lower()
+            candidates = [
+                p
+                for p in candidates
+                if any(str(t).strip().lower() == tag_clean for t in (p.tags or []))
+            ]
 
         if not candidates:
             return None

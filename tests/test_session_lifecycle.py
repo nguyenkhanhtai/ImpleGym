@@ -66,3 +66,28 @@ async def test_session_lifecycle_and_stopwatch_ac(db_session: AsyncSession) -> N
     assert final_sess.total_duration_seconds is not None
     assert final_sess.total_duration_seconds >= 0.0
     assert final_sess.submission_count == 2
+
+
+@pytest.mark.asyncio
+async def test_session_manual_stop(db_session: AsyncSession) -> None:
+    """Test manually stopping/pausing an active workout session."""
+    catalog = ProblemCatalogService(db_session)
+    prob = await catalog.get_by_slug("aplusb")
+    assert prob is not None
+
+    tracker = SessionTracker(db_session)
+    session = await tracker.start_session(problem_id=prob.id, is_manual_selection=True)
+    assert session.status == "active"
+
+    # Stop session manually
+    stopped = await tracker.stop_session(session.id)
+    assert stopped is not None
+    assert stopped.status == "stopped"
+    assert stopped.finished_at is not None
+    assert stopped.total_duration_seconds is not None
+    assert 0.0 <= stopped.total_duration_seconds < 5.0
+    # Verify timezone offset awareness (UTC)
+    assert stopped.started_at.tzinfo is not None
+    assert stopped.finished_at.tzinfo is not None
+    delta = (stopped.finished_at - stopped.started_at).total_seconds()
+    assert 0.0 <= delta < 5.0
