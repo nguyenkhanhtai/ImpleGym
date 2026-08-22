@@ -2,13 +2,15 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.db.models import Problem
 
 # Built-in curated dataset mapping Yosupo problems to implementation difficulty ratings (1..10)
-DEFAULT_YOSUPO_PROBLEMS: List[Dict[str, Any]] = [
+DEFAULT_YOSUPO_PROBLEMS: list[dict[str, Any]] = [
     {
         "slug": "aplusb",
         "title": "A + B",
@@ -314,22 +316,21 @@ class ProblemIndexer:
         for cat_entry in os.scandir(repo_dir):
             if not cat_entry.is_dir() or cat_entry.name.startswith("."):
                 continue
-            
+
             for prob_entry in os.scandir(cat_entry.path):
                 if not prob_entry.is_dir():
                     continue
-                
+
                 prob_path = Path(prob_entry.path)
-                info_toml = prob_path / "info.toml"
                 task_md = prob_path / "task.md"
 
                 if task_md.exists():
                     slug = prob_entry.name
                     title = prob_entry.name.replace("_", " ").title()
                     category = cat_entry.name.replace("_", " ").title()
-                    
+
                     statement = task_md.read_text(encoding="utf-8", errors="ignore")
-                    
+
                     # Check if already present
                     stmt = select(Problem).where(Problem.slug == slug)
                     res = await self.session.execute(stmt)

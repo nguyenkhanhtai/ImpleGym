@@ -1,10 +1,11 @@
 """Tests for DatabaseSyncService bidirectional sync and migration."""
 
-import os
 from pathlib import Path
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from implegym.db.models import Base, Problem
 from implegym.db.syncer import DatabaseSyncService
 

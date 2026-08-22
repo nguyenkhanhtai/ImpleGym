@@ -1,12 +1,12 @@
 """Gaussian and Skew-Normal difficulty sampling engine."""
 
-import math
 import random
-from typing import Dict, List, Optional
+
 import numpy as np
 from scipy import stats
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.db.models import PracticeSession, Problem
 from implegym.models.schemas import ProblemResponseSchema, SamplerConfigSchema
 
@@ -18,7 +18,7 @@ class GaussianSampler:
         self.session = session
 
     @staticmethod
-    def compute_difficulty_probabilities(config: SamplerConfigSchema) -> Dict[int, float]:
+    def compute_difficulty_probabilities(config: SamplerConfigSchema) -> dict[int, float]:
         """Calculate discrete probability distribution over difficulties 1 to 10."""
         mean = config.mean_difficulty
         std = max(0.1, config.standard_deviation)
@@ -41,19 +41,19 @@ class GaussianSampler:
         total_mass = np.sum(pdf_values)
         if total_mass <= 1e-12:
             # Fallback uniform if degenerated
-            return {d: 0.1 for d in range(1, 11)}
+            return dict.fromkeys(range(1, 11), 0.1)
 
         probs = pdf_values / total_mass
-        return {int(d): float(p) for d, p in zip(difficulties, probs)}
+        return {int(d): float(p) for d, p in zip(difficulties, probs, strict=False)}
 
-    async def sample_problem(self, config: SamplerConfigSchema) -> Optional[ProblemResponseSchema]:
+    async def sample_problem(self, config: SamplerConfigSchema) -> ProblemResponseSchema | None:
         """Sample a single problem from database according to configured probability distribution."""
         probs = await self.sample_problems(config, count=1)
         return probs[0] if probs else None
 
     async def sample_problems(
-        self, config: SamplerConfigSchema, count: Optional[int] = None
-    ) -> List[ProblemResponseSchema]:
+        self, config: SamplerConfigSchema, count: int | None = None
+    ) -> list[ProblemResponseSchema]:
         """Sample N problems (1 <= N <= 14) from database according to configured probability distribution."""
         target_count = max(1, min(14, count if count is not None else config.num_problems))
         probs_map = self.compute_difficulty_probabilities(config)
@@ -86,11 +86,11 @@ class GaussianSampler:
 
         if not candidates:
             return []
-        diff_buckets: Dict[int, List[Problem]] = {d: [] for d in range(1, 11)}
+        diff_buckets: dict[int, list[Problem]] = {d: [] for d in range(1, 11)}
         for p in candidates:
             diff_buckets[p.difficulty].append(p)
 
-        chosen_problems: List[Problem] = []
+        chosen_problems: list[Problem] = []
         available_candidates = list(candidates)
 
         for _ in range(target_count):
@@ -98,7 +98,7 @@ class GaussianSampler:
                 break
 
             # Recalculate diff buckets for remaining available candidates
-            curr_diff_buckets: Dict[int, List[Problem]] = {d: [] for d in range(1, 11)}
+            curr_diff_buckets: dict[int, list[Problem]] = {d: [] for d in range(1, 11)}
             for p in available_candidates:
                 curr_diff_buckets[p.difficulty].append(p)
 
@@ -117,4 +117,3 @@ class GaussianSampler:
             available_candidates.remove(chosen)
 
         return [ProblemResponseSchema.model_validate(p) for p in chosen_problems]
-

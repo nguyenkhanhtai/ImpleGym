@@ -1,11 +1,12 @@
 """AI-driven composite problem synthesis, testcase generator execution, and self-testing pipeline."""
 
 import json
-import os
 import re
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.ai.client import OpenAIClient
 from implegym.db.models import CustomProblem, Problem
 from implegym.judge.compiler import CompilerManager
@@ -19,18 +20,16 @@ class ProblemGeneratorService:
     def __init__(
         self,
         session: AsyncSession,
-        ai_client: Optional[OpenAIClient] = None,
-        judge_runner: Optional[JudgeRunner] = None,
-        compiler_manager: Optional[CompilerManager] = None,
+        ai_client: OpenAIClient | None = None,
+        judge_runner: JudgeRunner | None = None,
+        compiler_manager: CompilerManager | None = None,
     ) -> None:
         self.session = session
         self.ai = ai_client or OpenAIClient()
         self.compiler = compiler_manager or CompilerManager()
         self.judge = judge_runner or JudgeRunner(self.compiler)
 
-    async def generate_problem(
-        self, req: GenerateProblemRequest
-    ) -> ProblemResponseSchema:
+    async def generate_problem(self, req: GenerateProblemRequest) -> ProblemResponseSchema:
         """Generate a composite problem, execute test generator to produce tests, and verify model solution."""
         if not self.ai.is_configured:
             # Fallback deterministic generator template
@@ -128,11 +127,11 @@ class ProblemGeneratorService:
         self,
         generator_code: str,
         solution_code: str,
-        sample_cases: List[Dict[str, str]],
+        sample_cases: list[dict[str, str]],
         extra_test_count: int = 3,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """Compile generator and solution, produce random inputs, and compute expected outputs."""
-        testsuite: List[Dict[str, str]] = list(sample_cases)
+        testsuite: list[dict[str, str]] = list(sample_cases)
 
         if not generator_code or not solution_code:
             return testsuite
@@ -142,7 +141,12 @@ class ProblemGeneratorService:
         # Compile model solution
         sol_comp = self.compiler.compile(solution_code, compiler_profile="g++ (C++20)")
 
-        if not gen_comp.success or not sol_comp.success or not gen_comp.executable_path or not sol_comp.executable_path:
+        if (
+            not gen_comp.success
+            or not sol_comp.success
+            or not gen_comp.executable_path
+            or not sol_comp.executable_path
+        ):
             return testsuite
 
         # Generate inputs with various seeds
@@ -173,10 +177,12 @@ class ProblemGeneratorService:
                 )
                 test_out = sol_proc.stdout
                 if sol_proc.returncode == 0 and test_out.strip():
-                    testsuite.append({
-                        "input": test_in,
-                        "output": test_out,
-                    })
+                    testsuite.append(
+                        {
+                            "input": test_in,
+                            "output": test_out,
+                        }
+                    )
             except Exception:
                 continue
 
@@ -189,7 +195,7 @@ Synthesize a competitive programming problem combining:
 1. Technique A: {req.topic_1}
 2. Technique B: {req.topic_2}
 Target Difficulty: {req.target_difficulty} / 10
-Additional Instructions: {req.extra_instructions or 'None'}
+Additional Instructions: {req.extra_instructions or "None"}
 
 Please respond strictly in JSON with keys:
 - "title": (str) Problem title
@@ -204,14 +210,14 @@ Please respond strictly in JSON with keys:
 - "checker_cpp": (str) C++ comparator / checker code.
 """
 
-    def _parse_generated_json(self, raw_json: str, req: GenerateProblemRequest) -> Dict[str, Any]:
+    def _parse_generated_json(self, raw_json: str, req: GenerateProblemRequest) -> dict[str, Any]:
         """Safely parse GPT generated problem dictionary."""
         try:
             return json.loads(raw_json)
         except Exception:
             return self._build_fallback_problem(req)
 
-    def _build_fallback_problem(self, req: GenerateProblemRequest) -> Dict[str, Any]:
+    def _build_fallback_problem(self, req: GenerateProblemRequest) -> dict[str, Any]:
         """Generate deterministic fallback composite problem with working generator and solution."""
         slug_base = f"{req.topic_1}_{req.topic_2}".lower().replace(" ", "_")
         return {

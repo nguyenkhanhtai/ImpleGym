@@ -3,11 +3,10 @@
 import os
 import shutil
 import subprocess
-import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+
 from implegym.config import settings
 from implegym.models.schemas import CompilerProfileSchema
 
@@ -17,17 +16,17 @@ class CompilationResult:
     """Result of a compilation attempt."""
 
     success: bool
-    executable_path: Optional[Path] = None
-    source_path: Optional[Path] = None
+    executable_path: Path | None = None
+    source_path: Path | None = None
     diagnostics: str = ""
-    error_type: Optional[str] = None  # "CE" or None
+    error_type: str | None = None  # "CE" or None
 
 
 class CompilerManager:
     """Manages compiler detection, profiles, and invocation."""
 
     # Built-in supported compiler profile definitions
-    PROFILES: Dict[str, Dict[str, str]] = {
+    PROFILES: dict[str, dict[str, str]] = {
         "g++ (C++20)": {
             "executable": "g++",
             "language": "cpp",
@@ -66,13 +65,13 @@ class CompilerManager:
         },
     }
 
-    def __init__(self, sandbox_base: Optional[Path] = None) -> None:
+    def __init__(self, sandbox_base: Path | None = None) -> None:
         self.sandbox_base = sandbox_base or settings.sandbox_dir
         self.sandbox_base.mkdir(parents=True, exist_ok=True)
 
-    def get_available_profiles(self) -> List[CompilerProfileSchema]:
+    def get_available_profiles(self) -> list[CompilerProfileSchema]:
         """Detect and return compiler profiles available on the current machine."""
-        available: List[CompilerProfileSchema] = []
+        available: list[CompilerProfileSchema] = []
         for name, cfg in self.PROFILES.items():
             exec_name = cfg["executable"]
             is_present = shutil.which(exec_name) is not None
@@ -93,7 +92,7 @@ class CompilerManager:
         self,
         code: str,
         compiler_profile: str = "g++ (C++20)",
-        custom_flags: Optional[str] = None,
+        custom_flags: str | None = None,
     ) -> CompilationResult:
         """Compile source code into executable in isolated sandbox."""
         config = self.PROFILES.get(compiler_profile)
@@ -119,7 +118,7 @@ class CompilerManager:
         # C++ compilation
         src_file = session_sandbox / "solution.cpp"
         src_file.write_text(code, encoding="utf-8")
-        
+
         exe_suffix = ".exe" if os.name == "nt" else ""
         out_file = session_sandbox / f"solution{exe_suffix}"
 

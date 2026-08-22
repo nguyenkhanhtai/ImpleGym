@@ -1,7 +1,8 @@
 """Central LLM manager and dynamic provider router."""
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
+
 from implegym.ai.providers import (
     BaseLLMProvider,
     ClaudeProvider,
@@ -10,7 +11,6 @@ from implegym.ai.providers import (
     OllamaProvider,
     OpenAIProvider,
 )
-from implegym.config import settings
 from implegym.models.schemas import AIConfigSchema
 
 
@@ -19,11 +19,11 @@ class LLMManager:
 
     _instance: Optional["LLMManager"] = None
 
-    def __init__(self, default_provider: Optional[str] = None) -> None:
+    def __init__(self, default_provider: str | None = None) -> None:
         self.default_provider_name = default_provider or os.getenv("AI_PROVIDER", "openai").lower()
         self.default_temperature: float = 0.3
-        self.default_max_tokens: Optional[int] = 4096
-        self._providers: Dict[str, BaseLLMProvider] = {
+        self.default_max_tokens: int | None = 4096
+        self._providers: dict[str, BaseLLMProvider] = {
             "openai": OpenAIProvider(),
             "gemini": GeminiProvider(),
             "deepseek": DeepSeekProvider(),
@@ -85,7 +85,7 @@ class LLMManager:
                 max_tokens=config.max_tokens,
             )
 
-    def get_provider(self, name: Optional[str] = None) -> BaseLLMProvider:
+    def get_provider(self, name: str | None = None) -> BaseLLMProvider:
         """Retrieve dedicated provider instance by name."""
         provider_key = (name or self.default_provider_name).lower()
         provider = self._providers.get(provider_key)
@@ -93,12 +93,16 @@ class LLMManager:
             return self._providers["openai"]
         return provider
 
-    def get_current_config(self) -> Dict[str, Any]:
+    def get_current_config(self) -> dict[str, Any]:
         """Return currently active configuration with masked API keys for safety."""
         active = self.get_provider()
         masked_key = ""
         if active.api_key and active.api_key != "ollama":
-            masked_key = f"{active.api_key[:4]}...{active.api_key[-4:]}" if len(active.api_key) > 8 else "***"
+            masked_key = (
+                f"{active.api_key[:4]}...{active.api_key[-4:]}"
+                if len(active.api_key) > 8
+                else "***"
+            )
 
         return {
             "provider": active.provider_name,
@@ -110,12 +114,12 @@ class LLMManager:
             "max_tokens": active.max_tokens,
         }
 
-    def get_models_for_provider(self, name: Optional[str] = None) -> List[str]:
+    def get_models_for_provider(self, name: str | None = None) -> list[str]:
         """Get list of supported models for a specific provider."""
         provider = self.get_provider(name)
         return provider.get_available_models()
 
-    def list_available_providers(self) -> List[Dict[str, Any]]:
+    def list_available_providers(self) -> list[dict[str, Any]]:
         """List all supported providers with their configuration status and default models."""
         return [
             {
@@ -138,12 +142,12 @@ class LLMManager:
 
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
-        provider: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        response_format: Optional[Dict[str, Any]] = None,
-        config_override: Optional[AIConfigSchema] = None,
+        messages: list[dict[str, str]],
+        provider: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict[str, Any] | None = None,
+        config_override: AIConfigSchema | None = None,
     ) -> str:
         """Route chat completion to requested provider with hyperparameter overrides."""
         if config_override:
@@ -167,14 +171,24 @@ class LLMManager:
         """Create on-the-fly provider for one-off request with custom config."""
         name = config.provider.lower()
         if name == "gemini":
-            return GeminiProvider(config.api_key, config.model, config.api_base, config.temperature, config.max_tokens)
+            return GeminiProvider(
+                config.api_key, config.model, config.api_base, config.temperature, config.max_tokens
+            )
         elif name == "deepseek":
-            return DeepSeekProvider(config.api_key, config.model, config.api_base, config.temperature, config.max_tokens)
+            return DeepSeekProvider(
+                config.api_key, config.model, config.api_base, config.temperature, config.max_tokens
+            )
         elif name == "claude":
-            return ClaudeProvider(config.api_key, config.model, config.api_base, config.temperature, config.max_tokens)
+            return ClaudeProvider(
+                config.api_key, config.model, config.api_base, config.temperature, config.max_tokens
+            )
         elif name == "ollama":
-            return OllamaProvider(config.api_base, config.model, config.temperature, config.max_tokens)
-        return OpenAIProvider(config.api_key, config.model, config.api_base, config.temperature, config.max_tokens)
+            return OllamaProvider(
+                config.api_base, config.model, config.temperature, config.max_tokens
+            )
+        return OpenAIProvider(
+            config.api_key, config.model, config.api_base, config.temperature, config.max_tokens
+        )
 
 
 # Backward compatibility alias

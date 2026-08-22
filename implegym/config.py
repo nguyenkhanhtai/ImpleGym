@@ -1,7 +1,7 @@
 """Configuration settings module for ImpleGym."""
 
 from pathlib import Path
-from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     )
 
     # AI Configuration
-    openai_api_key: Optional[str] = Field(
+    openai_api_key: str | None = Field(
         default=None,
         description="OpenAI API Key for code refinement and problem synthesis",
     )
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent,
         description="Base project directory",
     )
-    yosupo_problems_dir: Optional[Path] = Field(
+    yosupo_problems_dir: Path | None = Field(
         default=None,
         description="Optional local path to yosupo06/library-checker-problems clone",
     )

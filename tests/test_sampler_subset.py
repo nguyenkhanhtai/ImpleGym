@@ -3,6 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.db.models import PracticeSession
 from implegym.models.schemas import SamplerConfigSchema
 from implegym.sampler.distribution import GaussianSampler
@@ -22,7 +23,9 @@ async def test_sample_extracts_category_subset(db_session: AsyncSession) -> None
         assert prob.slug == "aplusb"
 
     # 2. Sample from 'Data Structure' category
-    ds_cfg = SamplerConfigSchema(category="Data Structure", mean_difficulty=3.0, standard_deviation=1.5)
+    ds_cfg = SamplerConfigSchema(
+        category="Data Structure", mean_difficulty=3.0, standard_deviation=1.5
+    )
     for _ in range(10):
         prob = await sampler.sample_problem(ds_cfg)
         assert prob is not None

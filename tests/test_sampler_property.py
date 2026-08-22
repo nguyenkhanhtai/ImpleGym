@@ -1,9 +1,10 @@
 """Property-based testing for Gaussian and Skew-Normal sampling engine using Hypothesis."""
 
 import math
-import pytest
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
+
 from implegym.models.schemas import SamplerConfigSchema
 from implegym.sampler.distribution import GaussianSampler
 
@@ -41,8 +42,12 @@ class TestSamplerProperties:
 
     def test_skewness_direction_shift(self) -> None:
         """Property: Left-skewed distribution must allocate significantly more mass to lower difficulties."""
-        left_config = SamplerConfigSchema(mean_difficulty=5.5, standard_deviation=1.5, skewness="left")
-        right_config = SamplerConfigSchema(mean_difficulty=5.5, standard_deviation=1.5, skewness="right")
+        left_config = SamplerConfigSchema(
+            mean_difficulty=5.5, standard_deviation=1.5, skewness="left"
+        )
+        right_config = SamplerConfigSchema(
+            mean_difficulty=5.5, standard_deviation=1.5, skewness="right"
+        )
 
         left_probs = GaussianSampler.compute_difficulty_probabilities(left_config)
         right_probs = GaussianSampler.compute_difficulty_probabilities(right_config)

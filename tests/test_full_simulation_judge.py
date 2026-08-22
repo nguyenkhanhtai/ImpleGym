@@ -1,7 +1,5 @@
 """Test suite verifying comprehensive 100% input/output simulation testing and judge accuracy."""
 
-import pytest
-from implegym.judge.compiler import CompilerManager
 from implegym.judge.runner import JudgeRunner, OutputComparator
 
 
@@ -45,7 +43,10 @@ class TestFullSimulationJudge:
             # Edge case 3: Strictly decreasing
             {"input": "4\n40 30 20 10\n", "output": "1\n3\n"},
             # Boundary case 4: Large values up to 10^9
-            {"input": "6\n1000000000 500000000 700000000 900000000 600000000 800000000\n", "output": "3\n1 4 5\n"},
+            {
+                "input": "6\n1000000000 500000000 700000000 900000000 600000000 800000000\n",
+                "output": "3\n1 4 5\n",
+            },
         ]
 
         # 100% Full Optimal O(N log N) C++ Simulation Solution

@@ -1,6 +1,5 @@
 """Tests for CompilerManager across different standards and diagnostics capture."""
 
-import pytest
 from implegym.judge.compiler import CompilerManager
 
 

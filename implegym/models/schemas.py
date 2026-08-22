@@ -1,7 +1,7 @@
 """Pydantic request and response schemas for ImpleGym."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 
@@ -23,10 +23,10 @@ class ProblemBaseSchema(BaseModel):
     input_format: str = ""
     output_format: str = ""
     constraints: str = ""
-    sample_cases: List[SampleCaseSchema] = Field(default_factory=list)
+    sample_cases: list[SampleCaseSchema] = Field(default_factory=list)
     time_limit: float = 2.0
     memory_limit_mb: int = 1024
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     source: str = "yosupo"
     is_difficulty_customized: bool = False
 
@@ -38,11 +38,11 @@ class ProblemResponseSchema(ProblemBaseSchema):
 
     id: int
     created_at: datetime
-    is_solved: Optional[bool] = False
-    is_successful: Optional[bool] = False
-    best_time_seconds: Optional[float] = None
+    is_solved: bool | None = False
+    is_successful: bool | None = False
+    best_time_seconds: float | None = None
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def target_time_seconds(self) -> float:
         """Target benchmark time in seconds (difficulty * 5 minutes)."""
@@ -52,21 +52,21 @@ class ProblemResponseSchema(ProblemBaseSchema):
 class ProblemUpdateSchema(BaseModel):
     """Schema for manually updating problem properties."""
 
-    difficulty: Optional[int] = Field(None, ge=1, le=10, description="Difficulty rating from 1 to 10")
-    title: Optional[str] = None
-    category: Optional[str] = None
-    tags: Optional[List[str]] = None
+    difficulty: int | None = Field(None, ge=1, le=10, description="Difficulty rating from 1 to 10")
+    title: str | None = None
+    category: str | None = None
+    tags: list[str] | None = None
 
 
 class ProblemFilterParams(BaseModel):
     """Filter parameters for problem search."""
 
-    search: Optional[str] = None
-    category: Optional[str] = None
-    min_difficulty: Optional[int] = Field(default=1, ge=1, le=10)
-    max_difficulty: Optional[int] = Field(default=10, ge=1, le=10)
-    tag: Optional[str] = None
-    solved_status: Optional[str] = Field(default="all", description="all, solved, unsolved")
+    search: str | None = None
+    category: str | None = None
+    min_difficulty: int | None = Field(default=1, ge=1, le=10)
+    max_difficulty: int | None = Field(default=10, ge=1, le=10)
+    tag: str | None = None
+    solved_status: str | None = Field(default="all", description="all, solved, unsolved")
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
 
@@ -85,35 +85,42 @@ class SamplerConfigSchema(BaseModel):
         default="balanced",
         description="Distribution skewness: 'balanced', 'left' (easier), or 'right' (harder)",
     )
-    category: Optional[str] = None
-    tag: Optional[str] = None
+    category: str | None = None
+    tag: str | None = None
     exclude_solved: bool = False
-    num_problems: int = Field(default=1, ge=1, le=14, description="Number of problems to sample (1 to 14)")
+    num_problems: int = Field(
+        default=1, ge=1, le=14, description="Number of problems to sample (1 to 14)"
+    )
 
 
 class StartSessionRequest(BaseModel):
     """Start workout contest session request."""
 
-    name: Optional[str] = Field(default=None, description="Contest name. If omitted, defaults to Gym Contest - YYYY-MM-DD HH:MM")
-    problem_slug: Optional[str] = None
-    problem_slugs: Optional[List[str]] = None
-    num_problems: int = Field(default=1, ge=1, le=14, description="Number of problems in contest (1 to 14)")
-    sampler_config: Optional[SamplerConfigSchema] = None
+    name: str | None = Field(
+        default=None,
+        description="Contest name. If omitted, defaults to Gym Contest - YYYY-MM-DD HH:MM",
+    )
+    problem_slug: str | None = None
+    problem_slugs: list[str] | None = None
+    num_problems: int = Field(
+        default=1, ge=1, le=14, description="Number of problems in contest (1 to 14)"
+    )
+    sampler_config: SamplerConfigSchema | None = None
 
 
 class SwitchProblemRequest(BaseModel):
     """Switch active problem within a contest session."""
 
-    session_id: Optional[int] = None
-    problem_id: Optional[int] = None
-    problem_slug: Optional[str] = None
-    problem_index: Optional[int] = None
+    session_id: int | None = None
+    problem_id: int | None = None
+    problem_slug: str | None = None
+    problem_index: int | None = None
 
 
 class SubmissionCreateRequest(BaseModel):
     """Create submission request."""
 
-    session_id: Optional[int] = None
+    session_id: int | None = None
     problem_slug: str
     code: str
     language: str = "cpp"
@@ -128,7 +135,7 @@ class TestCaseResultSchema(BaseModel):
     verdict: str  # AC, WA, TLE, MLE, RE
     time_ms: float
     memory_kb: int
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class SubmissionResponseSchema(BaseModel):
@@ -137,16 +144,16 @@ class SubmissionResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    session_id: Optional[int] = None
+    session_id: int | None = None
     problem_id: int
     language: str
     compiler_profile: str
     compiler_flags: str
     verdict: str
-    exec_time_ms: Optional[float] = None
-    memory_kb: Optional[int] = None
-    test_results: List[TestCaseResultSchema] = Field(default_factory=list)
-    error_message: Optional[str] = None
+    exec_time_ms: float | None = None
+    memory_kb: int | None = None
+    test_results: list[TestCaseResultSchema] = Field(default_factory=list)
+    error_message: str | None = None
     created_at: datetime
 
 
@@ -159,22 +166,22 @@ class PracticeSessionResponseSchema(BaseModel):
     name: str = ""
     problem_id: int
     problem: ProblemResponseSchema
-    problem_ids: List[int] = Field(default_factory=list)
-    problems: List[ProblemResponseSchema] = Field(default_factory=list)
+    problem_ids: list[int] = Field(default_factory=list)
+    problems: list[ProblemResponseSchema] = Field(default_factory=list)
     current_problem_index: int = 0
-    problem_statuses: Dict[str, str] = Field(default_factory=dict)
+    problem_statuses: dict[str, str] = Field(default_factory=dict)
     num_problems: int = 1
     solved_count: int = 0
     status: str
     is_manual_selection: bool
     started_at: datetime
-    finished_at: Optional[datetime] = None
-    total_duration_seconds: Optional[float] = None
-    target_time_seconds: Optional[float] = None
-    total_target_time_seconds: Optional[float] = None
-    is_successful: Optional[bool] = None
+    finished_at: datetime | None = None
+    total_duration_seconds: float | None = None
+    target_time_seconds: float | None = None
+    total_target_time_seconds: float | None = None
+    is_successful: bool | None = None
     submission_count: int
-    submissions: List[SubmissionResponseSchema] = Field(default_factory=list)
+    submissions: list[SubmissionResponseSchema] = Field(default_factory=list)
 
 
 class AIReviewSuggestion(BaseModel):
@@ -183,7 +190,7 @@ class AIReviewSuggestion(BaseModel):
     category: str  # Performance, CP Idiom, Memory Layout, Edge Case, Clean Code
     title: str
     detail: str
-    code_diff: Optional[str] = None
+    code_diff: str | None = None
 
 
 class AIReviewResponseSchema(BaseModel):
@@ -194,7 +201,7 @@ class AIReviewResponseSchema(BaseModel):
     id: int
     submission_id: int
     feedback_markdown: str
-    suggestions: List[AIReviewSuggestion] = Field(default_factory=list)
+    suggestions: list[AIReviewSuggestion] = Field(default_factory=list)
     model_used: str
     created_at: datetime
 
@@ -203,11 +210,11 @@ class AIConfigSchema(BaseModel):
     """Configuration schema for AI provider and hyperparameters."""
 
     provider: str = Field(default="openai", description="openai, gemini, deepseek, claude, ollama")
-    model: Optional[str] = Field(default=None, description="Model identifier")
-    api_key: Optional[str] = Field(default=None, description="API Key")
-    api_base: Optional[str] = Field(default=None, description="Custom API Base URL")
+    model: str | None = Field(default=None, description="Model identifier")
+    api_key: str | None = Field(default=None, description="API Key")
+    api_base: str | None = Field(default=None, description="Custom API Base URL")
     temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Sampling temperature")
-    max_tokens: Optional[int] = Field(default=4096, ge=128, le=16384, description="Max token limit")
+    max_tokens: int | None = Field(default=4096, ge=128, le=16384, description="Max token limit")
 
 
 class GenerateProblemRequest(BaseModel):
@@ -216,8 +223,8 @@ class GenerateProblemRequest(BaseModel):
     topic_1: str = Field(description="First DS or concept, e.g., Fenwick Tree")
     topic_2: str = Field(description="Second DS or concept, e.g., Heavy-Light Decomposition")
     target_difficulty: int = Field(default=6, ge=1, le=10)
-    extra_instructions: Optional[str] = None
-    ai_config: Optional[AIConfigSchema] = None
+    extra_instructions: str | None = None
+    ai_config: AIConfigSchema | None = None
 
 
 class CompilerProfileSchema(BaseModel):
@@ -228,4 +235,4 @@ class CompilerProfileSchema(BaseModel):
     executable: str
     language: str
     default_flags: str
-    supported_standards: List[str] = Field(default_factory=list)
+    supported_standards: list[str] = Field(default_factory=list)

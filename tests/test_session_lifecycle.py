@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.models.schemas import SubmissionCreateRequest
 from implegym.problems.catalog import ProblemCatalogService
 from implegym.session.tracker import SessionTracker
@@ -143,7 +144,9 @@ async def test_contest_multi_problem_lifecycle_and_switching(db_session: AsyncSe
     sub1, sess_after_prob1 = await tracker.submit_code(ac_prob1_req)
     assert sub1.verdict == "AC"
     assert sess_after_prob1 is not None
-    assert sess_after_prob1.status == "active"  # Remains active because Problem 2 is not yet solved!
+    assert (
+        sess_after_prob1.status == "active"
+    )  # Remains active because Problem 2 is not yet solved!
     assert sess_after_prob1.solved_count == 1
     assert sess_after_prob1.problem_statuses.get(str(prob1.id)) == "ac"
 
@@ -195,4 +198,3 @@ async def test_contest_multi_problem_lifecycle_and_switching(db_session: AsyncSe
     assert sess_final.solved_count == 2
     assert sess_final.finished_at is not None
     assert sess_final.total_duration_seconds is not None
-

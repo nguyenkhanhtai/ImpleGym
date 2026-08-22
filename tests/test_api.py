@@ -25,7 +25,9 @@ async def test_compilers_endpoint(async_client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_list_problems_endpoint(async_client: AsyncClient) -> None:
     """Test listing problems with pagination, category and difficulty filters."""
-    res = await async_client.get("/api/problems?min_difficulty=1&max_difficulty=10&page=1&page_size=2")
+    res = await async_client.get(
+        "/api/problems?min_difficulty=1&max_difficulty=10&page=1&page_size=2"
+    )
     assert res.status_code == 200
     data = res.json()
     assert "items" in data
@@ -153,7 +155,9 @@ async def test_problem_success_target_time_benchmark(async_client: AsyncClient) 
     start_res = await async_client.post("/api/session/start", json={"problem_slug": "aplusb"})
     assert start_res.status_code == 200
     sess_data = start_res.json()
-    assert sess_data["problem"]["target_time_seconds"] == sess_data["problem"]["difficulty"] * 5 * 60.0
+    assert (
+        sess_data["problem"]["target_time_seconds"] == sess_data["problem"]["difficulty"] * 5 * 60.0
+    )
 
     # 2. Submit solution
     sub_res = await async_client.post(
@@ -170,7 +174,9 @@ async def test_problem_success_target_time_benchmark(async_client: AsyncClient) 
     res_data = sub_res.json()
     assert res_data["session"]["status"] == "ac"
     assert res_data["session"]["is_successful"] is True
-    assert res_data["session"]["total_duration_seconds"] <= res_data["session"]["target_time_seconds"]
+    assert (
+        res_data["session"]["total_duration_seconds"] <= res_data["session"]["target_time_seconds"]
+    )
 
     # 3. Check problem catalog reflects is_successful = True
     prob_res = await async_client.get("/api/problems/aplusb")
@@ -330,6 +336,7 @@ async def test_contest_creation_and_multi_problem_endpoints(async_client: AsyncC
 
     first_prob = sess["problems"][0]
     second_prob = sess["problems"][1]
+    assert first_prob["id"] != second_prob["id"]
 
     # 2. Switch problem in contest
     switch_res = await async_client.post(
@@ -395,8 +402,3 @@ async def test_contest_exact_number_of_chosen_problems(
     assert active_sess["num_problems"] == target_n
     assert len(active_sess["problems"]) == target_n
     assert len(active_sess["problem_ids"]) == target_n
-
-
-
-
-

@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.problems.catalog import ProblemCatalogService
 from implegym.problems.yosupo_syncer import YosupoSyncer
 
@@ -11,11 +12,14 @@ async def test_yosupo_syncer_difficulty_calculation(db_session: AsyncSession) ->
     """Test difficulty assignment heuristics for known and category baselines."""
     syncer = YosupoSyncer(db_session)
     from pathlib import Path
+
     tmp_path = Path("dummy_dir")
 
     # Known problems
     assert syncer._calculate_difficulty("aplusb", "sample", tmp_path) == 1
-    assert syncer._calculate_difficulty("dynamic_tree_subtree_add_subtree_sum", "tree", tmp_path) == 10
+    assert (
+        syncer._calculate_difficulty("dynamic_tree_subtree_add_subtree_sum", "tree", tmp_path) == 10
+    )
     assert syncer._calculate_difficulty("point_add_range_sum", "datastructure", tmp_path) == 4
 
     # Baseline heuristics

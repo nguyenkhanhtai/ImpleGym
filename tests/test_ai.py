@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.ai.generator import ProblemGeneratorService
 from implegym.ai.refiner import CodeRefinerService
 from implegym.models.schemas import GenerateProblemRequest, SubmissionCreateRequest
@@ -24,7 +25,9 @@ async def test_code_refiner_fallback_structure(db_session: AsyncSession) -> None
     assert review.submission_id == sub.id
     assert len(review.feedback_markdown) > 0
     assert len(review.suggestions) > 0
-    assert any(s.category in ["Performance", "Memory Layout", "CP Idiom"] for s in review.suggestions)
+    assert any(
+        s.category in ["Performance", "Memory Layout", "CP Idiom"] for s in review.suggestions
+    )
 
 
 @pytest.mark.asyncio

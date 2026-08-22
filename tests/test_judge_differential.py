@@ -1,6 +1,5 @@
 """Judge runner and differential test execution tests."""
 
-import pytest
 from implegym.judge.runner import JudgeRunner, OutputComparator
 
 

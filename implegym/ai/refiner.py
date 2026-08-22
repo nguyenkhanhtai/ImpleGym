@@ -1,10 +1,12 @@
 """AI-powered competitive programming code refinement engine."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
 from implegym.ai.client import OpenAIClient
 from implegym.db.models import AIReview, Submission
 from implegym.models.schemas import AIReviewResponseSchema, AIReviewSuggestion
@@ -13,7 +15,7 @@ from implegym.models.schemas import AIReviewResponseSchema, AIReviewSuggestion
 class CodeRefinerService:
     """Service that analyzes CP code submissions and generates actionable advice."""
 
-    def __init__(self, session: AsyncSession, ai_client: Optional[OpenAIClient] = None) -> None:
+    def __init__(self, session: AsyncSession, ai_client: OpenAIClient | None = None) -> None:
         self.session = session
         self.ai = ai_client or OpenAIClient()
 
@@ -35,9 +37,7 @@ class CodeRefinerService:
                 id=submission.ai_review.id,
                 submission_id=submission.id,
                 feedback_markdown=submission.ai_review.feedback_markdown,
-                suggestions=[
-                    AIReviewSuggestion(**s) for s in submission.ai_review.suggestions
-                ],
+                suggestions=[AIReviewSuggestion(**s) for s in submission.ai_review.suggestions],
                 model_used=submission.ai_review.model_used,
                 created_at=submission.ai_review.created_at,
             )
@@ -120,7 +120,7 @@ Please output JSON with keys:
   - "code_diff": Optional suggested code snippet or diff
 """
 
-    def _parse_ai_response(self, raw_json: str) -> tuple[str, List[Dict[str, Any]]]:
+    def _parse_ai_response(self, raw_json: str) -> tuple[str, list[dict[str, Any]]]:
         """Safely parse GPT JSON response."""
         try:
             data = json.loads(raw_json)
@@ -130,7 +130,7 @@ Please output JSON with keys:
         except Exception:
             return raw_json, []
 
-    def _build_offline_fallback(self, submission: Submission) -> tuple[str, List[Dict[str, Any]]]:
+    def _build_offline_fallback(self, submission: Submission) -> tuple[str, list[dict[str, Any]]]:
         """Generate offline static CP advice when OpenAI key is not set."""
         suggestions = [
             {

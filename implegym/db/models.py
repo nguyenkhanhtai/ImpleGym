@@ -1,7 +1,8 @@
 """SQLAlchemy ORM models for ImpleGym."""
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any, Optional
+
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -48,22 +49,24 @@ class Problem(Base):
     input_format: Mapped[str] = mapped_column(Text, nullable=False, default="")
     output_format: Mapped[str] = mapped_column(Text, nullable=False, default="")
     constraints: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    sample_cases: Mapped[List[Dict[str, str]]] = mapped_column(
+    sample_cases: Mapped[list[dict[str, str]]] = mapped_column(
         SQLiteCompatibleJSON, default=list, nullable=False
     )
     time_limit: Mapped[float] = mapped_column(Float, default=2.0, nullable=False)
     memory_limit_mb: Mapped[int] = mapped_column(Integer, default=1024, nullable=False)
-    tags: Mapped[List[str]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)
     source: Mapped[str] = mapped_column(String(64), default="yosupo", nullable=False)
     is_difficulty_customized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
-    sessions: Mapped[List["PracticeSession"]] = relationship("PracticeSession", back_populates="problem")
-    submissions: Mapped[List["Submission"]] = relationship("Submission", back_populates="problem")
+    sessions: Mapped[list["PracticeSession"]] = relationship(
+        "PracticeSession", back_populates="problem"
+    )
+    submissions: Mapped[list["Submission"]] = relationship("Submission", back_populates="problem")
 
 
 class PracticeSession(Base):
@@ -74,24 +77,28 @@ class PracticeSession(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), default="", nullable=False)
     problem_id: Mapped[int] = mapped_column(Integer, ForeignKey("problems.id"), nullable=False)
-    problem_ids: Mapped[List[int]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)
+    problem_ids: Mapped[list[int]] = mapped_column(
+        SQLiteCompatibleJSON, default=list, nullable=False
+    )
     current_problem_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    problem_statuses: Mapped[Dict[str, str]] = mapped_column(
+    problem_statuses: Mapped[dict[str, str]] = mapped_column(
         SQLiteCompatibleJSON, default=dict, nullable=False
     )
-    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)  # active, ac, abandoned, stopped
+    status: Mapped[str] = mapped_column(
+        String(32), default="active", nullable=False
+    )  # active, ac, abandoned, stopped
     is_manual_selection: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    total_duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     submission_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     problem: Mapped["Problem"] = relationship("Problem", back_populates="sessions")
-    submissions: Mapped[List["Submission"]] = relationship("Submission", back_populates="session")
+    submissions: Mapped[list["Submission"]] = relationship("Submission", back_populates="session")
 
 
 class Submission(Base):
@@ -100,29 +107,33 @@ class Submission(Base):
     __tablename__ = "submissions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[Optional[int]] = mapped_column(
+    session_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("practice_sessions.id"), nullable=True, index=True
     )
-    problem_id: Mapped[int] = mapped_column(Integer, ForeignKey("problems.id"), nullable=False, index=True)
+    problem_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("problems.id"), nullable=False, index=True
+    )
     code: Mapped[str] = mapped_column(Text, nullable=False)
     language: Mapped[str] = mapped_column(String(32), default="cpp", nullable=False)
     compiler_profile: Mapped[str] = mapped_column(String(64), default="g++ (C++20)", nullable=False)
     compiler_flags: Mapped[str] = mapped_column(String(256), default="-O3", nullable=False)
     verdict: Mapped[str] = mapped_column(String(32), default="JUDGING", nullable=False, index=True)
-    exec_time_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    memory_kb: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    test_results: Mapped[List[Dict[str, Any]]] = mapped_column(
+    exec_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    memory_kb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    test_results: Mapped[list[dict[str, Any]]] = mapped_column(
         SQLiteCompatibleJSON, default=list, nullable=False
     )
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
     problem: Mapped["Problem"] = relationship("Problem", back_populates="submissions")
-    session: Mapped[Optional["PracticeSession"]] = relationship("PracticeSession", back_populates="submissions")
+    session: Mapped[Optional["PracticeSession"]] = relationship(
+        "PracticeSession", back_populates="submissions"
+    )
     ai_review: Mapped[Optional["AIReview"]] = relationship(
         "AIReview", back_populates="submission", uselist=False, cascade="all, delete-orphan"
     )
@@ -138,13 +149,13 @@ class AIReview(Base):
         Integer, ForeignKey("submissions.id"), unique=True, nullable=False
     )
     feedback_markdown: Mapped[str] = mapped_column(Text, nullable=False)
-    suggestions: Mapped[List[Dict[str, Any]]] = mapped_column(
+    suggestions: Mapped[list[dict[str, Any]]] = mapped_column(
         SQLiteCompatibleJSON, default=list, nullable=False
     )
     model_used: Mapped[str] = mapped_column(String(64), default="gpt-4o", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -165,6 +176,6 @@ class CustomProblem(Base):
     checker_cpp: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )

@@ -1,8 +1,8 @@
-"""Problem catalog service for search, filtering, and queries."""
+from typing import Any
 
-from typing import List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.db.models import PracticeSession, Problem, Submission
 from implegym.models.schemas import ProblemFilterParams, ProblemResponseSchema
 
@@ -15,7 +15,7 @@ class ProblemCatalogService:
 
     async def list_problems(
         self, params: ProblemFilterParams
-    ) -> Tuple[List[ProblemResponseSchema], int]:
+    ) -> tuple[list[ProblemResponseSchema], int]:
         """Query problems matching filter criteria with pagination."""
         query = select(Problem)
 
@@ -50,7 +50,7 @@ class ProblemCatalogService:
         problems = result.scalars().all()
 
         # Batch-fetch solve statistics for all problems on the page
-        enriched: List[ProblemResponseSchema] = []
+        enriched: list[ProblemResponseSchema] = []
         if problems:
             prob_ids = [p.id for p in problems]
 
@@ -129,7 +129,7 @@ class ProblemCatalogService:
 
         return enriched, total_count
 
-    async def get_by_slug(self, slug: str) -> Optional[ProblemResponseSchema]:
+    async def get_by_slug(self, slug: str) -> ProblemResponseSchema | None:
         """Fetch problem by slug."""
         stmt = select(Problem).where(Problem.slug == slug)
         res = await self.session.execute(stmt)
@@ -161,8 +161,8 @@ class ProblemCatalogService:
         )
 
     async def update_problem(
-        self, slug: str, update_data: Dict[str, Any]
-    ) -> Optional[ProblemResponseSchema]:
+        self, slug: str, update_data: dict[str, Any]
+    ) -> ProblemResponseSchema | None:
         """Update problem properties (difficulty, title, category, tags)."""
         stmt = select(Problem).where(Problem.slug == slug)
         res = await self.session.execute(stmt)
@@ -184,7 +184,7 @@ class ProblemCatalogService:
         await self.session.refresh(prob)
         return await self.get_by_slug(slug)
 
-    async def get_all_categories(self) -> List[str]:
+    async def get_all_categories(self) -> list[str]:
         """Get unique categories."""
         stmt = select(Problem.category).distinct().order_by(Problem.category.asc())
         res = await self.session.execute(stmt)
@@ -192,7 +192,7 @@ class ProblemCatalogService:
 
     async def _get_solve_stats(
         self, problem_id: int, difficulty: int
-    ) -> Tuple[bool, bool, Optional[float]]:
+    ) -> tuple[bool, bool, float | None]:
         """Determine if problem has been ACed, whether it met target time (diff * 5 min), and best solve duration."""
         target_seconds = difficulty * 5 * 60.0
         stmt = (

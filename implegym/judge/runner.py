@@ -1,11 +1,10 @@
 """Judge runner executing test cases with time and memory tracking."""
 
-import os
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+
 from implegym.judge.compiler import CompilationResult, CompilerManager
 from implegym.models.schemas import TestCaseResultSchema
 
@@ -17,8 +16,8 @@ class JudgeRunResult:
     verdict: str  # AC, WA, TLE, MLE, RE, CE
     exec_time_ms: float
     memory_kb: int
-    test_results: List[TestCaseResultSchema]
-    error_message: Optional[str] = None
+    test_results: list[TestCaseResultSchema]
+    error_message: str | None = None
 
 
 class OutputComparator:
@@ -33,7 +32,7 @@ class OutputComparator:
         if len(actual_tokens) != len(expected_tokens):
             return False
 
-        for a, e in zip(actual_tokens, expected_tokens):
+        for a, e in zip(actual_tokens, expected_tokens, strict=False):
             if a != e:
                 # Attempt float comparison with tolerance
                 try:
@@ -49,7 +48,7 @@ class OutputComparator:
 class JudgeRunner:
     """Executes submissions against test suites."""
 
-    def __init__(self, compiler_manager: Optional[CompilerManager] = None) -> None:
+    def __init__(self, compiler_manager: CompilerManager | None = None) -> None:
         self.compiler_manager = compiler_manager or CompilerManager()
         self.comparator = OutputComparator()
 
@@ -124,10 +123,10 @@ class JudgeRunner:
     def evaluate(
         self,
         code: str,
-        sample_cases: List[Dict[str, str]],
+        sample_cases: list[dict[str, str]],
         time_limit_sec: float = 2.0,
         compiler_profile: str = "g++ (C++20)",
-        compiler_flags: Optional[str] = None,
+        compiler_flags: str | None = None,
     ) -> JudgeRunResult:
         """Compile and evaluate code against all sample cases."""
         comp_res: CompilationResult = self.compiler_manager.compile(
@@ -146,7 +145,7 @@ class JudgeRunner:
             )
 
         lang = "python" if "python" in compiler_profile.lower() else "cpp"
-        test_results: List[TestCaseResultSchema] = []
+        test_results: list[TestCaseResultSchema] = []
         max_time_ms = 0.0
         final_verdict = "AC"
 

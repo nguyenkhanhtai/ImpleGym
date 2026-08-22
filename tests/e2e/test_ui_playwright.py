@@ -6,7 +6,7 @@ import pytest
 @pytest.mark.e2e
 def test_ui_e2e_mock() -> None:
     """E2E test suite definition for Playwright automation.
-    
+
     Validates:
     1. Navigation to Problem Explorer and table rendering.
     2. Starting session via Gaussian Sampler modal.

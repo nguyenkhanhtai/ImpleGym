@@ -2,7 +2,8 @@
 
 import asyncio
 import os
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from implegym.config import settings
+
 from implegym.db.database import get_db_session
 from implegym.db.models import Base
 from implegym.problems.indexer import ProblemIndexer
@@ -67,6 +68,7 @@ async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, N
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create async test client bound to test database session."""
+
     async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 

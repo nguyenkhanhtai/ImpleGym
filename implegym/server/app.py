@@ -1,19 +1,22 @@
 import hashlib
 import json
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any
+
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.ai.generator import ProblemGeneratorService
 from implegym.ai.refiner import CodeRefinerService
 from implegym.config import settings
-from implegym.db.database import get_db_session, get_engine, init_db, session_scope
-from implegym.db.models import PracticeSession, Problem, Submission
+from implegym.db.database import get_db_session, init_db, session_scope
+from implegym.db.models import PracticeSession, Submission
 from implegym.judge.compiler import CompilerManager
 from implegym.models.schemas import (
     AIConfigSchema,
@@ -93,13 +96,13 @@ compiler_manager = CompilerManager()
 
 
 @app.get("/api/health")
-async def health_check() -> Dict[str, str]:
+async def health_check() -> dict[str, str]:
     """Healthcheck endpoint."""
     return {"status": "ok", "app": "ImpleGym"}
 
 
-@app.get("/api/compilers", response_model=List[CompilerProfileSchema])
-async def get_compilers() -> List[CompilerProfileSchema]:
+@app.get("/api/compilers", response_model=list[CompilerProfileSchema])
+async def get_compilers() -> list[CompilerProfileSchema]:
     """List available compiler profiles detected on host."""
     return compiler_manager.get_available_profiles()
 
@@ -118,11 +121,11 @@ async def get_categories(
 @app.get("/api/problems")
 async def list_problems(
     request: Request,
-    search: Optional[str] = None,
-    category: Optional[str] = None,
+    search: str | None = None,
+    category: str | None = None,
     min_difficulty: int = Query(default=1, ge=1, le=10),
     max_difficulty: int = Query(default=10, ge=1, le=10),
-    tag: Optional[str] = None,
+    tag: str | None = None,
     solved_status: str = Query(default="all", pattern="^(all|successful|solved|unsolved)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -155,9 +158,10 @@ async def list_problems(
 @app.post("/api/problems/sync")
 async def sync_yosupo_problems(
     db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trigger synchronization from official yosupo06/library-checker-problems repository."""
     from implegym.problems.yosupo_syncer import YosupoSyncer
+
     syncer = YosupoSyncer(db)
     count = await syncer.sync_all_problems()
     return {"status": "ok", "synced_count": count}
@@ -168,9 +172,10 @@ async def sync_yosupo_problems(
 async def sync_single_yosupo_problem(
     slug: str,
     db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trigger testcase generation and synchronization for a single problem by slug."""
     from implegym.problems.yosupo_syncer import YosupoSyncer
+
     syncer = YosupoSyncer(db)
     prob_data = await syncer.sync_problem(slug)
     if not prob_data:
@@ -215,7 +220,7 @@ async def start_session(
 ) -> PracticeSessionResponseSchema:
     """Start workout contest session via manual slugs or Gaussian sampling (N problems, max 14)."""
     catalog = ProblemCatalogService(db)
-    resolved_problem_ids: List[int] = []
+    resolved_problem_ids: list[int] = []
     is_manual = False
 
     if req.problem_slugs:
@@ -275,7 +280,7 @@ async def switch_session_problem_endpoint(
 @app.post("/api/sampler/sample")
 async def sample_problem_endpoint(
     config: SamplerConfigSchema = Body(default_factory=SamplerConfigSchema),
-    count: Optional[int] = Query(default=None, ge=1, le=14),
+    count: int | None = Query(default=None, ge=1, le=14),
     db: AsyncSession = Depends(get_db_session),
 ) -> Any:
     """Sample N problems (1..14) matching configuration filters without immediately creating a session."""
@@ -283,28 +288,26 @@ async def sample_problem_endpoint(
     num_to_sample = count or config.num_problems or 1
     probs = await sampler.sample_problems(config, count=num_to_sample)
     if not probs:
-        raise HTTPException(
-            status_code=404, detail="No problems found matching sampling criteria"
-        )
+        raise HTTPException(status_code=404, detail="No problems found matching sampling criteria")
     if num_to_sample == 1:
         return probs[0]
     return probs
 
 
-@app.get("/api/session/active", response_model=Optional[PracticeSessionResponseSchema])
+@app.get("/api/session/active", response_model=PracticeSessionResponseSchema | None)
 async def get_active_session(
     db: AsyncSession = Depends(get_db_session),
-) -> Optional[PracticeSessionResponseSchema]:
+) -> PracticeSessionResponseSchema | None:
     """Get active workout session and current stopwatch status."""
     tracker = SessionTracker(db)
     return await tracker.get_active_session()
 
 
-@app.get("/api/session/{session_id}", response_model=Optional[PracticeSessionResponseSchema])
+@app.get("/api/session/{session_id}", response_model=PracticeSessionResponseSchema | None)
 async def get_session_by_id(
     session_id: int,
     db: AsyncSession = Depends(get_db_session),
-) -> Optional[PracticeSessionResponseSchema]:
+) -> PracticeSessionResponseSchema | None:
     """Retrieve details for a specific contest session."""
     tracker = SessionTracker(db)
     sess = await tracker.get_session(session_id)
@@ -313,10 +316,10 @@ async def get_session_by_id(
     return sess
 
 
-@app.post("/api/session/stop", response_model=Optional[PracticeSessionResponseSchema])
+@app.post("/api/session/stop", response_model=PracticeSessionResponseSchema | None)
 async def stop_session(
-    session_id: Optional[int] = None, db: AsyncSession = Depends(get_db_session)
-) -> Optional[PracticeSessionResponseSchema]:
+    session_id: int | None = None, db: AsyncSession = Depends(get_db_session)
+) -> PracticeSessionResponseSchema | None:
     """Manually stop the active workout stopwatch session."""
     tracker = SessionTracker(db)
     return await tracker.stop_session(session_id)
@@ -325,7 +328,7 @@ async def stop_session(
 @app.post("/api/session/submit")
 async def submit_code(
     req: SubmissionCreateRequest, db: AsyncSession = Depends(get_db_session)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Submit solution code, execute local judge, and stop stopwatch if AC."""
     tracker = SessionTracker(db)
     try:
@@ -338,11 +341,11 @@ async def submit_code(
         raise HTTPException(status_code=400, detail=str(ex))
 
 
-@app.get("/api/history/sessions", response_model=List[PracticeSessionResponseSchema])
+@app.get("/api/history/sessions", response_model=list[PracticeSessionResponseSchema])
 async def list_session_history(
     limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-) -> List[PracticeSessionResponseSchema]:
+) -> list[PracticeSessionResponseSchema]:
     """List historical practice sessions and solve metrics."""
     tracker = SessionTracker(db)
     return await tracker.list_session_history(limit=limit)
@@ -377,7 +380,7 @@ async def get_submission(
 @app.delete("/api/submissions/{submission_id}")
 async def delete_submission(
     submission_id: int, db: AsyncSession = Depends(get_db_session)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Delete a specific submission record and its associated AI review."""
     stmt = select(Submission).where(Submission.id == submission_id)
     res = await db.execute(stmt)
@@ -393,7 +396,7 @@ async def delete_submission(
 @app.delete("/api/history/sessions/{session_id}")
 async def delete_session(
     session_id: int, db: AsyncSession = Depends(get_db_session)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Delete a practice session and all its submissions."""
     stmt = select(PracticeSession).where(PracticeSession.id == session_id)
     res = await db.execute(stmt)
@@ -419,17 +422,19 @@ async def refine_submission(
 
 
 @app.get("/api/ai/providers")
-async def list_ai_providers() -> List[Dict[str, Any]]:
+async def list_ai_providers() -> list[dict[str, Any]]:
     """List all supported and configured AI providers (OpenAI, Gemini, DeepSeek, Claude, Ollama)."""
     from implegym.ai.client import LLMManager
+
     manager = LLMManager.get_instance()
     return manager.list_available_providers()
 
 
 @app.get("/api/ai/models")
-async def list_ai_models(provider: Optional[str] = None) -> Dict[str, Any]:
+async def list_ai_models(provider: str | None = None) -> dict[str, Any]:
     """Get list of available models for a specific provider or active provider."""
     from implegym.ai.client import LLMManager
+
     manager = LLMManager.get_instance()
     target = provider or manager.default_provider_name
     return {
@@ -439,17 +444,19 @@ async def list_ai_models(provider: Optional[str] = None) -> Dict[str, Any]:
 
 
 @app.get("/api/ai/config")
-async def get_ai_config() -> Dict[str, Any]:
+async def get_ai_config() -> dict[str, Any]:
     """Get active AI provider configuration and hyperparameters."""
     from implegym.ai.client import LLMManager
+
     manager = LLMManager.get_instance()
     return manager.get_current_config()
 
 
 @app.post("/api/ai/config")
-async def update_ai_config(config: AIConfigSchema) -> Dict[str, Any]:
+async def update_ai_config(config: AIConfigSchema) -> dict[str, Any]:
     """Update runtime AI provider, API key, base URL, model, and hyperparameters."""
     from implegym.ai.client import LLMManager
+
     manager = LLMManager.get_instance()
     manager.configure_provider(config)
     return {
@@ -471,10 +478,11 @@ async def generate_problem(
 @app.post("/api/db/sync")
 async def trigger_db_sync(
     source_url: str = "sqlite+aiosqlite:///data/implegym.db",
-    target_url: Optional[str] = None,
-) -> Dict[str, Any]:
+    target_url: str | None = None,
+) -> dict[str, Any]:
     """Sync data between SQLite and PostgreSQL databases."""
     from implegym.db.syncer import DatabaseSyncService
+
     tgt = target_url or settings.database_url
     syncer = DatabaseSyncService(source_url=source_url, target_url=tgt)
     return await syncer.sync_data()
@@ -523,4 +531,3 @@ async def serve_forge() -> FileResponse:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Forge page not found")
     return FileResponse(str(path))
-

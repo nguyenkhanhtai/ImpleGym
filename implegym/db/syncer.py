@@ -1,11 +1,16 @@
 """Database synchronization and migration service between SQLite and PostgreSQL."""
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from implegym.config import settings
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
 from implegym.db.models import AIReview, Base, CustomProblem, PracticeSession, Problem, Submission
 
 logger = logging.getLogger("implegym.db.syncer")
@@ -28,7 +33,7 @@ class DatabaseSyncService:
             connect_args = {"check_same_thread": False}
         return create_async_engine(url, echo=False, future=True, connect_args=connect_args)
 
-    async def sync_data(self) -> Dict[str, Any]:
+    async def sync_data(self) -> dict[str, Any]:
         """Perform full sync from source database to target database."""
         source_engine = self._create_engine(self.source_url)
         target_engine = self._create_engine(self.target_url)
@@ -40,8 +45,12 @@ class DatabaseSyncService:
         async with target_engine.begin() as tgt_conn:
             await tgt_conn.run_sync(Base.metadata.create_all)
 
-        source_factory = async_sessionmaker(source_engine, expire_on_commit=False, class_=AsyncSession)
-        target_factory = async_sessionmaker(target_engine, expire_on_commit=False, class_=AsyncSession)
+        source_factory = async_sessionmaker(
+            source_engine, expire_on_commit=False, class_=AsyncSession
+        )
+        target_factory = async_sessionmaker(
+            target_engine, expire_on_commit=False, class_=AsyncSession
+        )
 
         stats = {
             "problems_synced": 0,
@@ -80,7 +89,9 @@ class DatabaseSyncService:
             custom_res = await src_session.execute(select(CustomProblem))
             src_custom = custom_res.scalars().all()
             for cp in src_custom:
-                existing = await tgt_session.execute(select(CustomProblem).where(CustomProblem.slug == cp.slug))
+                existing = await tgt_session.execute(
+                    select(CustomProblem).where(CustomProblem.slug == cp.slug)
+                )
                 if not existing.scalar_one_or_none():
                     new_cp = CustomProblem(
                         slug=cp.slug,
@@ -97,7 +108,9 @@ class DatabaseSyncService:
             sessions_res = await src_session.execute(select(PracticeSession))
             src_sessions = sessions_res.scalars().all()
             for s in src_sessions:
-                existing = await tgt_session.execute(select(PracticeSession).where(PracticeSession.id == s.id))
+                existing = await tgt_session.execute(
+                    select(PracticeSession).where(PracticeSession.id == s.id)
+                )
                 if not existing.scalar_one_or_none():
                     new_s = PracticeSession(
                         id=s.id,
@@ -117,7 +130,9 @@ class DatabaseSyncService:
             sub_res = await src_session.execute(select(Submission))
             src_subs = sub_res.scalars().all()
             for sub in src_subs:
-                existing = await tgt_session.execute(select(Submission).where(Submission.id == sub.id))
+                existing = await tgt_session.execute(
+                    select(Submission).where(Submission.id == sub.id)
+                )
                 if not existing.scalar_one_or_none():
                     new_sub = Submission(
                         id=sub.id,

@@ -1,11 +1,13 @@
 """Test verifying auto testcase generation and database caching on submit."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from implegym.db.models import Problem, PracticeSession
-from implegym.session.tracker import SessionTracker
+
+from implegym.db.models import Problem
 from implegym.models.schemas import SubmissionCreateRequest
+from implegym.session.tracker import SessionTracker
 
 
 @pytest.mark.asyncio

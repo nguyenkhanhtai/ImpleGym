@@ -1,6 +1,5 @@
 """Tests for dedicated AI providers (OpenAI, Gemini, DeepSeek, Claude, Ollama)."""
 
-import pytest
 from implegym.ai.client import LLMManager
 from implegym.ai.providers import (
     ClaudeProvider,
@@ -15,7 +14,7 @@ def test_llm_manager_provider_registry() -> None:
     """Test LLMManager manages all dedicated providers."""
     manager = LLMManager()
     providers = manager.list_available_providers()
-    
+
     assert len(providers) == 5
     provider_names = {p["name"] for p in providers}
     assert provider_names == {"openai", "gemini", "deepseek", "claude", "ollama"}
@@ -47,6 +46,7 @@ def test_dedicated_provider_initialization() -> None:
 def test_llm_manager_dynamic_configuration() -> None:
     """Test updating LLMManager configuration at runtime."""
     from implegym.models.schemas import AIConfigSchema
+
     manager = LLMManager()
 
     config = AIConfigSchema(

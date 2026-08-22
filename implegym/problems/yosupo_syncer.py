@@ -1,13 +1,14 @@
-"""Automated synchronizer and parser for yosupo06/library-checker-problems repository."""
-
 import logging
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from implegym.config import settings
 from implegym.db.models import Problem
 
@@ -20,7 +21,7 @@ except ImportError:
 
 
 # Heuristic implementation difficulty mapping baseline for Yosupo topics
-CATEGORY_DIFFICULTY_BASELINE: Dict[str, int] = {
+CATEGORY_DIFFICULTY_BASELINE: dict[str, int] = {
     "sample": 1,
     "data_structure": 5,
     "datastructure": 5,
@@ -42,7 +43,7 @@ CATEGORY_DIFFICULTY_BASELINE: Dict[str, int] = {
 }
 
 # Specific curated difficulty overrides for well-known library-checker problems
-KNOWN_PROBLEM_DIFFICULTIES: Dict[str, int] = {
+KNOWN_PROBLEM_DIFFICULTIES: dict[str, int] = {
     "aplusb": 1,
     "many_aplusb": 2,
     "associative_array": 2,
@@ -87,7 +88,7 @@ class YosupoSyncer:
 
     OFFICIAL_REPO_URL = "https://github.com/yosupo06/library-checker-problems.git"
 
-    def __init__(self, session: AsyncSession, repo_dir: Optional[Path] = None) -> None:
+    def __init__(self, session: AsyncSession, repo_dir: Path | None = None) -> None:
         self.session = session
         self.repo_dir = repo_dir or settings.yosupo_problems_dir or (Path("data") / "yosupo_repo")
 
@@ -103,7 +104,9 @@ class YosupoSyncer:
             res = subprocess.run(cmd, capture_output=True, text=True, check=False)
             return res.returncode == 0
 
-    def parse_problem_directory(self, category_name: str, problem_dir: Path) -> Optional[Dict[str, Any]]:
+    def parse_problem_directory(
+        self, category_name: str, problem_dir: Path
+    ) -> dict[str, Any] | None:
         """Parse a single Yosupo problem directory containing info.toml, task.md, and sample cases."""
         info_toml = problem_dir / "info.toml"
         task_md = problem_dir / "task.md"
@@ -114,7 +117,7 @@ class YosupoSyncer:
         slug = problem_dir.name
         title = slug.replace("_", " ").title()
         time_limit = 2.0
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
 
         # 1. Parse info.toml
         try:
@@ -128,7 +131,9 @@ class YosupoSyncer:
 
         # 2. Parse task.md
         raw_markdown = task_md.read_text(encoding="utf-8", errors="ignore")
-        statement, input_fmt, output_fmt, constraints = self._extract_markdown_sections(raw_markdown, params)
+        statement, input_fmt, output_fmt, constraints = self._extract_markdown_sections(
+            raw_markdown, params
+        )
 
         # 3. Extract sample cases and generated testcases from info.toml
         sample_cases = self._extract_sample_cases(problem_dir, raw_markdown)[:2]
@@ -166,7 +171,7 @@ class YosupoSyncer:
 
         synced_count = 0
         # Walk recursively to find all directories with info.toml and task.md
-        for root, dirs, files in os.walk(self.repo_dir):
+        for root, _dirs, files in os.walk(self.repo_dir):
             if "info.toml" in files and "task.md" in files:
                 prob_path = Path(root)
                 rel_parts = prob_path.relative_to(self.repo_dir).parts
@@ -202,7 +207,7 @@ class YosupoSyncer:
         await self.session.commit()
         return synced_count
 
-    async def sync_problem(self, slug: str) -> Optional[Dict[str, Any]]:
+    async def sync_problem(self, slug: str) -> dict[str, Any] | None:
         """Find a specific problem by slug, parse and regenerate all testcases, and update database."""
         if not self.repo_dir.exists():
             self.clone_or_pull_repo()
@@ -210,9 +215,9 @@ class YosupoSyncer:
         if not self.repo_dir.exists():
             return None
 
-        target_path: Optional[Path] = None
+        target_path: Path | None = None
         target_category: str = "general"
-        for root, dirs, files in os.walk(self.repo_dir):
+        for root, _dirs, files in os.walk(self.repo_dir):
             if "info.toml" in files and "task.md" in files:
                 p_path = Path(root)
                 if p_path.name == slug:
@@ -252,8 +257,8 @@ class YosupoSyncer:
         return prob_data
 
     def _extract_markdown_sections(
-        self, raw_md: str, params: Dict[str, Any]
-    ) -> Tuple[str, str, str, str]:
+        self, raw_md: str, params: dict[str, Any]
+    ) -> tuple[str, str, str, str]:
         """Extract clean statement and substitute param macros."""
         text = raw_md
 
@@ -293,9 +298,9 @@ class YosupoSyncer:
 
         return text.strip(), "", "", constraints
 
-    def _extract_sample_cases(self, problem_dir: Path, raw_md: str) -> List[Dict[str, str]]:
+    def _extract_sample_cases(self, problem_dir: Path, raw_md: str) -> list[dict[str, str]]:
         """Extract sample cases from problem directory or gen folder, generating outputs if needed."""
-        samples: List[Dict[str, str]] = []
+        samples: list[dict[str, str]] = []
         gen_dir = problem_dir / "gen"
 
         # Check problem_dir and gen_dir for example_*.in and example_*.out
@@ -307,21 +312,27 @@ class YosupoSyncer:
             for in_file in sorted(s_dir.glob("example_*.in")):
                 out_file = in_file.with_suffix(".out")
                 in_content = in_file.read_text(encoding="utf-8", errors="ignore").strip()
-                out_content = out_file.read_text(encoding="utf-8", errors="ignore").strip() if out_file.exists() else ""
-                
+                out_content = (
+                    out_file.read_text(encoding="utf-8", errors="ignore").strip()
+                    if out_file.exists()
+                    else ""
+                )
+
                 # If output is missing, generate it via reference solution
                 if not out_content and in_content:
                     out_content = self._generate_sample_output(problem_dir, in_file)
 
                 if in_content:
-                    samples.append({
-                        "input": in_content + "\n",
-                        "output": (out_content + "\n") if out_content else "",
-                    })
+                    samples.append(
+                        {
+                            "input": in_content + "\n",
+                            "output": (out_content + "\n") if out_content else "",
+                        }
+                    )
 
         return samples
 
-    def _generate_params_header(self, problem_dir: Path, params: Dict[str, Any]) -> None:
+    def _generate_params_header(self, problem_dir: Path, params: dict[str, Any]) -> None:
         """Write params.h header file containing problem parameter macro constants."""
         params_file = problem_dir / "params.h"
         lines = ["#pragma once\n"]
@@ -336,8 +347,8 @@ class YosupoSyncer:
             pass
 
     def _generate_testcases_from_info_toml(
-        self, problem_dir: Path, params: Dict[str, Any]
-    ) -> List[Dict[str, str]]:
+        self, problem_dir: Path, params: dict[str, Any]
+    ) -> list[dict[str, str]]:
         """Generate full test cases on the fly and delete compiled binaries/temporary files immediately to save disk space."""
         info_toml = problem_dir / "info.toml"
         if not info_toml.exists():
@@ -353,8 +364,8 @@ class YosupoSyncer:
         if not tests_config:
             return []
 
-        created_files: List[Path] = []
-        generated_tests: List[Dict[str, str]] = []
+        created_files: list[Path] = []
+        generated_tests: list[dict[str, str]] = []
 
         try:
             # 1. Write params.h if params exist
@@ -408,7 +419,17 @@ class YosupoSyncer:
                         cmd = ["g++", "-O3", "-std=c++17"]
                         if common_include.exists():
                             cmd.extend(["-I", str(common_include)])
-                        cmd.extend(["-I", str(problem_dir), "-I", str(gen_dir), str(gen_file), "-o", str(gen_exe)])
+                        cmd.extend(
+                            [
+                                "-I",
+                                str(problem_dir),
+                                "-I",
+                                str(gen_dir),
+                                str(gen_file),
+                                "-o",
+                                str(gen_exe),
+                            ]
+                        )
                         subprocess.run(cmd, capture_output=True, timeout=15)
                         created_files.append(gen_exe)
                     except Exception:
@@ -421,24 +442,30 @@ class YosupoSyncer:
                 for seed in range(1, num_to_generate + 1):
                     try:
                         # Run generator with seed
-                        gen_res = subprocess.run([str(gen_exe), str(seed)], capture_output=True, timeout=10)
+                        gen_res = subprocess.run(
+                            [str(gen_exe), str(seed)], capture_output=True, timeout=10
+                        )
                         if gen_res.returncode != 0 or not gen_res.stdout:
                             continue
                         input_data = gen_res.stdout
 
                         # Run reference solution to get expected output
-                        sol_res = subprocess.run([str(sol_exe)], input=input_data, capture_output=True, timeout=15)
+                        sol_res = subprocess.run(
+                            [str(sol_exe)], input=input_data, capture_output=True, timeout=15
+                        )
                         if sol_res.returncode != 0:
                             continue
 
                         in_text = input_data.decode("utf-8", errors="ignore").strip()
                         out_text = sol_res.stdout.decode("utf-8", errors="ignore").strip()
                         if in_text and out_text:
-                            generated_tests.append({
-                                "name": f"{gen_file.stem}_{seed:02d}",
-                                "input": in_text + "\n",
-                                "output": out_text + "\n",
-                            })
+                            generated_tests.append(
+                                {
+                                    "name": f"{gen_file.stem}_{seed:02d}",
+                                    "input": in_text + "\n",
+                                    "output": out_text + "\n",
+                                }
+                            )
                     except Exception:
                         continue
         finally:
@@ -458,7 +485,11 @@ class YosupoSyncer:
         if not sol_dir.exists():
             return ""
 
-        cpp_candidates = list(sol_dir.glob("correct.cpp")) + list(sol_dir.glob("main.cpp")) + list(sol_dir.glob("*.cpp"))
+        cpp_candidates = (
+            list(sol_dir.glob("correct.cpp"))
+            + list(sol_dir.glob("main.cpp"))
+            + list(sol_dir.glob("*.cpp"))
+        )
         if cpp_candidates:
             cpp_file = cpp_candidates[0]
             exe_file = cpp_file.with_suffix(".exe")
@@ -492,7 +523,11 @@ class YosupoSyncer:
                     pass
 
         # Python fallback
-        py_candidates = list(sol_dir.glob("correct.py")) + list(sol_dir.glob("main.py")) + list(sol_dir.glob("*.py"))
+        py_candidates = (
+            list(sol_dir.glob("correct.py"))
+            + list(sol_dir.glob("main.py"))
+            + list(sol_dir.glob("*.py"))
+        )
         if py_candidates:
             py_file = py_candidates[0]
             try:
@@ -533,11 +568,21 @@ class YosupoSyncer:
 if __name__ == "__main__":
     import argparse
     import asyncio
+
     from implegym.db.database import get_db_context
 
-    parser = argparse.ArgumentParser(description="Generate testcases from info.toml and sync Yosupo problems.")
-    parser.add_argument("slug", nargs="?", default=None, help="Problem slug to generate testcases for (e.g. static_range_sum)")
-    parser.add_argument("--all", action="store_true", help="Sync and generate testcases for all problems")
+    parser = argparse.ArgumentParser(
+        description="Generate testcases from info.toml and sync Yosupo problems."
+    )
+    parser.add_argument(
+        "slug",
+        nargs="?",
+        default=None,
+        help="Problem slug to generate testcases for (e.g. static_range_sum)",
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="Sync and generate testcases for all problems"
+    )
     args = parser.parse_args()
 
     async def run():
@@ -547,7 +592,9 @@ if __name__ == "__main__":
                 print(f"[*] Generating testcases for problem: {args.slug}...")
                 res = await syncer.sync_problem(args.slug)
                 if res:
-                    print(f"[+] Success! Generated {len(res.get('sample_cases', []))} testcases for {args.slug}")
+                    print(
+                        f"[+] Success! Generated {len(res.get('sample_cases', []))} testcases for {args.slug}"
+                    )
                 else:
                     print(f"[-] Problem {args.slug} not found.")
             elif args.all:
