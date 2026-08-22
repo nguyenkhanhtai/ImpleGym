@@ -769,6 +769,22 @@ ImpleGym/
   - **Issue**: In the builder stage of [`Dockerfile`](file:///e:/Documents/Programming/DSA/ImpleGym/Dockerfile), `pip install --no-cache-dir .` failed because only `pyproject.toml` and `README.md` were copied, leaving the source directory `implegym/` missing during the `hatchling` package build step.
   - **Resolution**: Added `COPY implegym ./implegym` to the builder stage before executing `pip install .`.
 
+#### User Prompt 57
+> "Where are these jobs defined?"
+
+#### Agent Actions
+- Explained the structure of GitHub Actions workflow definitions in [`.github/workflows/ci.yml`](file:///e:/Documents/Programming/DSA/ImpleGym/.github/workflows/ci.yml):
+  1. `lint-and-typecheck` (Line 10): Defines `Lint & Type Check` job.
+  2. `test-suite` (Line 33): Defines `Automated Tests & Coverage` job.
+  3. `docker-build` (Line 81): Defines `Docker Container Build` job.
+
+#### User Prompt 58
+> "Ruff unused import warnings in tests/conftest.py (`asyncio`, `pytest`)"
+
+#### Agent Actions
+- Removed unused `asyncio` and `pytest` imports from [`tests/conftest.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/conftest.py).
+- Ensures 100% clean output with `ruff check .` across all test files.
+
 ---
 
 ## 4. Execution Tracker & Results
@@ -786,6 +802,8 @@ ImpleGym/
 | 9 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | Dedicated Contest tab switcher in Gym, Explorer, History, Forge |
 | 10 | Automated Test Suites (`tests/`) | Completed | Playwright E2E, Hypothesis property tests, Full I/O simulation, info.toml test generator |
 | 11 | DevOps Tooling (`Dockerfile`, `docker-compose.yml`, CI) | Completed | Multi-stage Docker, GitHub Actions, Makefile |
+
+
 
 
 
