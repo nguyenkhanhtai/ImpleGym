@@ -785,6 +785,33 @@ ImpleGym/
 - Removed unused `asyncio` and `pytest` imports from [`tests/conftest.py`](file:///e:/Documents/Programming/DSA/ImpleGym/tests/conftest.py).
 - Ensures 100% clean output with `ruff check .` across all test files.
 
+#### User Prompt 59
+> "docker build okay means that this whole process is runnable, isn't it?"
+
+#### Agent Actions
+- Explained the difference between build-time guarantees and runtime execution:
+  1. **Build-Time Verification**: Confirms that all Python dependencies, Linux runtime compiler toolchains (`g++`, `clang`), database client libraries (`libpq5`), and static assets compile and package into a self-contained image without missing dependencies.
+  2. **Runtime Verification**: Confirms that the container can run with `docker compose up`, connecting to PostgreSQL, serving the FastAPI web server, and executing local judge evaluations hermetically inside Docker.
+
+#### User Prompt 60
+> "This one will create a separate environment to run a job?"
+
+#### Agent Actions
+- Explained GitHub Actions job execution model:
+  1. **Isolated Virtual Machines**: Each job under `jobs:` (`lint-and-typecheck`, `test-suite`, `docker-build`) is provisioned on a fresh, independent `ubuntu-latest` virtual machine (runner) in the cloud.
+  2. **Parallel Execution**: By default, all jobs run in parallel across separate VMs without sharing filesystem or installed packages unless explicitly passed via artifacts/cache.
+  3. **Hermetic Lifecycle**: Each VM spins up, sets up Python/dependencies, runs its steps, and is automatically torn down after execution.
+
+#### User Prompt 61
+> "pytest --cov=implegym --cov-report=xml -v: What will this command do?"
+
+#### Agent Actions
+- Detailed breakdown of pytest CLI flags:
+  1. `pytest`: Test runner locating and executing all test suites in `tests/`.
+  2. `--cov=implegym`: Measures line and branch code coverage across the `implegym` package.
+  3. `--cov-report=xml`: Exports test coverage results to a standard Cobertura XML report (`coverage.xml`).
+  4. `-v`: Verbose output printing individual test names and status (PASSED/FAILED).
+
 ---
 
 ## 4. Execution Tracker & Results
@@ -802,6 +829,8 @@ ImpleGym/
 | 9 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | Dedicated Contest tab switcher in Gym, Explorer, History, Forge |
 | 10 | Automated Test Suites (`tests/`) | Completed | Playwright E2E, Hypothesis property tests, Full I/O simulation, info.toml test generator |
 | 11 | DevOps Tooling (`Dockerfile`, `docker-compose.yml`, CI) | Completed | Multi-stage Docker, GitHub Actions, Makefile |
+
+
 
 
 
