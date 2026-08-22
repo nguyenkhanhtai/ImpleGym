@@ -701,6 +701,27 @@ ImpleGym/
   - In [`implegym/judge/runner.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py): Wrapped user solution evaluation in `try...finally` to immediately unlink the compiled user binary after judging completes.
   - Ensures zero persistent binary or disk bloat during problem synchronization and judging.
 
+#### User Prompt 51
+> "In the gym, I should see a list of contests, not this meaningless background. If you want to understand the codebase, read the context.md. 
+> In the gym, I want to see a tab list for contests, each of which is a gym session, upon clicking into it, there will be list of problems to solve.
+> There should be a "+" button to create contest (the only button placed here, not on the explorer). When we create the contest, there will be a popup to modify the parameters of our tests"
+
+#### Agent Actions
+- **Contest Tab List & Gym UI Upgrade**:
+  - Implemented `.contest-selection-bar` at the top of the Gym page containing a scrollable tab list of all contest sessions (`#contest-session-tabs`), showing contest titles, problem counts, and status pills (`ACTIVE`, `AC x/y`, `STOPPED`).
+  - Added dedicated `➕ Create Contest` button placed strictly in the Gym contest header (and removed from Explorer and History navbars).
+  - Added `+` tab button (`.contest-tab-plus-btn`) at the end of the contest tab bar for rapid contest creation.
+  - Added Empty Contest state hero card (`#empty-contest-hero`) for initial visits.
+  - Clicking any contest tab loads the full session via `GET /api/session/{session_id}` and renders all $N$ problems as interactive problem sub-tabs (Problem A, Problem B, ...).
+- **Backend API & Service Enhancements**:
+  - Added `SessionTracker.get_session(session_id)` in [`implegym/session/tracker.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/session/tracker.py).
+  - Added `GET /api/session/{session_id}` endpoint in [`implegym/server/app.py`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/server/app.py).
+- **Frontend Interaction & State**:
+  - Added `loadContestsList` and `selectContestSession` in [`implegym/static/gym.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/gym.js).
+  - Connected contest creation modal in [`implegym/static/common.js`](file:///e:/Documents/Programming/DSA/ImpleGym/implegym/static/common.js) to instantly refresh and switch into the newly created contest session.
+- **Automated Verification**:
+  - All 16 API test suites passing 100%.
+
 ---
 
 ## 4. Execution Tracker & Results
@@ -713,11 +734,12 @@ ImpleGym/
 | 4 | Yosupo Syncer (`problems/yosupo_syncer.py`) | Completed | Full official repo cloner, parser, info.toml testcase generator |
 | 5 | Gaussian & Skew-Normal Sampler (`sampler/`) | Completed | Bounded $\mathcal{N}(\mu, \sigma^2)$ and Azzalini skew-normal sampling |
 | 6 | Multi-Compiler Judge & Runner (`judge/`) | Completed | C++17/20/23, Clang, Python, testlib output comparator, TLE/MLE/RE |
-| 7 | Session Tracker & Stopwatch Engine (`session/`) | Completed | Stopwatch lifecycle (starts on problem open, stops on AC) |
+| 7 | Session Tracker & Stopwatch Engine (`session/`) | Completed | Multi-problem contest sessions, switching, and stopwatch lifecycle |
 | 8 | AI Refiner & Problem Generator (`ai/`) | Completed | OpenAI GPT-4o CP code refinement & composite problem generator |
-| 9 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | Dedicated pages: Explorer, Gym, History, Forge |
+| 9 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | Dedicated Contest tab switcher in Gym, Explorer, History, Forge |
 | 10 | Automated Test Suites (`tests/`) | Completed | Playwright E2E, Hypothesis property tests, Full I/O simulation, info.toml test generator |
 | 11 | DevOps Tooling (`Dockerfile`, `docker-compose.yml`, CI) | Completed | Multi-stage Docker, GitHub Actions, Makefile |
+
 
 
 

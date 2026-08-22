@@ -29,7 +29,7 @@
       </nav>
       <div class="nav-actions" style="display: flex; gap: 0.5rem;">
         <button id="btn-open-ai-config" class="btn btn-ai btn-sm" title="Configure AI Provider & Hyperparameters">⚙️ AI Settings</button>
-        <button id="btn-quick-sample" class="btn btn-primary btn-sm">🎲 Gaussian Sample</button>
+        <button id="btn-quick-sample" class="btn btn-outline-primary btn-sm">🎲 Gaussian Sample</button>
       </div>
     </header>
 
@@ -38,12 +38,38 @@
       <section class="page-pane">
         <div class="workout-full-layout">
           
-          <!-- Top Section 1: Live Stopwatch & HUD Bar (Full Width) -->
-          <div class="stopwatch-hud-bar">
+          <!-- Top Section 1: Contest Tab List Bar with "+" Button -->
+          <div class="contest-selection-bar">
+            <div class="contest-bar-header">
+              <div class="contest-bar-title-group">
+                <span class="contest-bar-trophy">🏆</span>
+                <span class="contest-bar-title">Gym Contests</span>
+              </div>
+              <button id="btn-create-contest" class="btn btn-primary btn-sm btn-create-contest-plus" title="Create a new timed contest with N problems">
+                <span>➕</span> Create Contest
+              </button>
+            </div>
+            <div class="contest-tabs-scroller" id="contest-session-tabs">
+              <!-- Dynamically populated with Contest 1, Contest 2 tabs -->
+            </div>
+          </div>
+
+          <!-- Empty Contest State (Shown when no contests exist) -->
+          <div id="empty-contest-hero" class="empty-contest-hero" style="display: none;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🏆</div>
+            <h3>No Gym Contests Created Yet</h3>
+            <p>Start a new contest workout session with custom difficulty parameters and up to 14 problems.</p>
+            <button id="btn-empty-create-contest" class="btn btn-primary btn-lg" style="font-weight: 700;">
+              ➕ Create Your First Contest
+            </button>
+          </div>
+
+          <!-- Top Section 2: Live Stopwatch & HUD Bar (Full Width) -->
+          <div class="stopwatch-hud-bar" id="stopwatch-hud-bar">
             <div class="hud-left">
               <div class="hud-status-wrapper">
                 <span class="pulse-dot" id="stopwatch-pulse" style="display: none;"></span>
-                <span id="session-status-text">NO ACTIVE SESSION</span>
+                <span id="session-status-text">NO ACTIVE CONTEST</span>
               </div>
               <div class="hud-meta" id="stopwatch-meta">
                 <span>Problem: <b id="current-problem-title">None</b></span>
@@ -62,8 +88,25 @@
             </div>
           </div>
 
-          <!-- Top Section 2: Full-Width Problem Description Card -->
-          <div class="problem-statement-card full-width-card">
+          <!-- Contest Session & Multi-Problem Switcher Bar -->
+          <div class="contest-hud-container" id="contest-hud-container" style="display: none;">
+            <div class="contest-info-row">
+              <div class="contest-title-wrapper">
+                <span class="contest-trophy">🏆</span>
+                <h3 id="contest-name-display" class="contest-name-heading">Gym Contest</h3>
+                <span class="contest-progress-badge" id="contest-progress-badge">0 / 0 Solved</span>
+              </div>
+              <div class="contest-meta-stats">
+                <span class="contest-target-badge" id="contest-target-display">🎯 Total Contest Target: <b>-</b></span>
+              </div>
+            </div>
+            <div class="contest-problem-tabs-scroller" id="contest-problem-tabs">
+              <!-- Populated dynamically with Problem A, B, C... chips -->
+            </div>
+          </div>
+
+          <!-- Top Section 3: Full-Width Problem Description Card -->
+          <div class="problem-statement-card full-width-card" id="problem-statement-card">
             <div class="statement-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
               <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                 <h2 id="stmt-title">Select a problem to start practicing</h2>
@@ -72,7 +115,7 @@
               <button id="btn-start-practice-banner" class="btn btn-success" style="display: none; font-weight: 700;">▶️ Start Practice & Stopwatch</button>
             </div>
             <div class="statement-body" id="stmt-body">
-              <p>Go to the <a href="/explorer" style="color: var(--accent-primary); font-weight: 600;">🧭 Problem Explorer</a> or click <b>🎲 Gaussian Sample</b> above to pick a problem and start your timer!</p>
+              <p>Create a contest using the <b>➕ Create Contest</b> button above or click <b>🎲 Gaussian Sample</b> to pick a problem and start your timer!</p>
             </div>
             <div class="statement-samples" id="stmt-samples"></div>
           </div>
@@ -132,6 +175,55 @@ int main() {
         </div>
       </section>
     </main>
+
+    <!-- Create Contest Modal -->
+    <div id="contest-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-header">
+          <h3>🏆 Create Practice Contest</h3>
+          <button id="btn-close-contest-modal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="contest-name-input">Contest Name (Optional):</label>
+            <input type="text" id="contest-name-input" placeholder="Gym Contest - YYYY-MM-DD HH:MM">
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Leave empty for default timestamped name.</small>
+          </div>
+          <div class="form-group">
+            <label>Number of Problems (N): <span id="contest-num-val" style="color: var(--accent-primary); font-weight: 700;">3</span> (Max 14)</label>
+            <input type="range" id="contest-num-problems" min="1" max="14" step="1" value="3">
+          </div>
+          <div class="form-group">
+            <label>Mean Difficulty: <span id="contest-mean-val">5.5</span> / 10</label>
+            <input type="range" id="contest-mean" min="1.0" max="10.0" step="0.5" value="5.5">
+          </div>
+          <div class="form-group">
+            <label>Standard Deviation: <span id="contest-std-val">1.5</span></label>
+            <input type="range" id="contest-std" min="0.5" max="3.0" step="0.1" value="1.5">
+          </div>
+          <div class="form-group">
+            <label>Difficulty Distribution Skew:</label>
+            <div class="radio-group">
+              <label><input type="radio" name="contest-skew" value="left"> ⬅️ Left (Easier)</label>
+              <label><input type="radio" name="contest-skew" value="balanced" checked> ⚖️ Balanced</label>
+              <label><input type="radio" name="contest-skew" value="right"> ➡️ Right (Harder)</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="contest-category-select">Category Filter (Optional):</label>
+            <select id="contest-category-select">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" id="contest-exclude-solved"> Exclude already solved problems</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-launch-contest" class="btn btn-primary btn-block">🚀 Launch Contest & Start Stopwatch</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Gaussian Sampler Modal -->
     <div id="sampler-modal" class="modal-overlay" style="display: none;">

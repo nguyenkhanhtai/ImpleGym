@@ -58,6 +58,48 @@ def get_session_factory(engine: Optional[AsyncEngine] = None) -> async_sessionma
     return _session_factory
 
 
+def _auto_migrate_tables(sync_conn: Any) -> None:
+    """Ensure newly added columns exist in existing database tables."""
+    dialect_name = sync_conn.dialect.name
+    if dialect_name == "sqlite":
+        # Check practice_sessions table info
+        result = sync_conn.exec_driver_sql("PRAGMA table_info(practice_sessions)").fetchall()
+        existing_cols = {row[1] for row in result}
+
+        if existing_cols:
+            if "name" not in existing_cols:
+                sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN name VARCHAR(256) DEFAULT '' NOT NULL")
+            if "problem_ids" not in existing_cols:
+                sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN problem_ids JSON DEFAULT '[]' NOT NULL")
+            if "current_problem_index" not in existing_cols:
+                sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN current_problem_index INTEGER DEFAULT 0 NOT NULL")
+            if "problem_statuses" not in existing_cols:
+                sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN problem_statuses JSON DEFAULT '{}' NOT NULL")
+
+            # Backfill problem_ids with single problem_id for older sessions
+            try:
+                sync_conn.exec_driver_sql(
+                    "UPDATE practice_sessions SET problem_ids = json_array(problem_id) WHERE problem_ids IS NULL OR problem_ids = '[]'"
+                )
+            except Exception:
+                pass
+
+        # Check problems table info
+        prob_result = sync_conn.exec_driver_sql("PRAGMA table_info(problems)").fetchall()
+        existing_prob_cols = {row[1] for row in prob_result}
+        if existing_prob_cols and "is_difficulty_customized" not in existing_prob_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE problems ADD COLUMN is_difficulty_customized BOOLEAN DEFAULT 0 NOT NULL")
+    elif dialect_name == "postgresql":
+        try:
+            sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS name VARCHAR(256) DEFAULT '' NOT NULL")
+            sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS problem_ids JSONB DEFAULT '[]'::jsonb NOT NULL")
+            sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS current_problem_index INTEGER DEFAULT 0 NOT NULL")
+            sync_conn.exec_driver_sql("ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS problem_statuses JSONB DEFAULT '{}'::jsonb NOT NULL")
+            sync_conn.exec_driver_sql("ALTER TABLE problems ADD COLUMN IF NOT EXISTS is_difficulty_customized BOOLEAN DEFAULT FALSE NOT NULL")
+        except Exception:
+            pass
+
+
 async def init_db(engine: Optional[AsyncEngine] = None) -> None:
     """Initialize database tables with automatic fallback to SQLite if PostgreSQL server is not running."""
     global _engine, _session_factory
@@ -66,6 +108,7 @@ async def init_db(engine: Optional[AsyncEngine] = None) -> None:
     try:
         async with eng.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_auto_migrate_tables)
     except (OSError, ConnectionRefusedError, Exception) as ex:
         # If target was Postgres and it failed to connect (e.g. port 5432 down)
         if "postgresql" in str(eng.url):
@@ -98,6 +141,7 @@ async def init_db(engine: Optional[AsyncEngine] = None) -> None:
             )
             async with _engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(_auto_migrate_tables)
         else:
             raise ex
 

@@ -88,13 +88,26 @@ class SamplerConfigSchema(BaseModel):
     category: Optional[str] = None
     tag: Optional[str] = None
     exclude_solved: bool = False
+    num_problems: int = Field(default=1, ge=1, le=14, description="Number of problems to sample (1 to 14)")
 
 
 class StartSessionRequest(BaseModel):
-    """Start workout session request."""
+    """Start workout contest session request."""
 
+    name: Optional[str] = Field(default=None, description="Contest name. If omitted, defaults to Gym Contest - YYYY-MM-DD HH:MM")
     problem_slug: Optional[str] = None
+    problem_slugs: Optional[List[str]] = None
+    num_problems: int = Field(default=1, ge=1, le=14, description="Number of problems in contest (1 to 14)")
     sampler_config: Optional[SamplerConfigSchema] = None
+
+
+class SwitchProblemRequest(BaseModel):
+    """Switch active problem within a contest session."""
+
+    session_id: Optional[int] = None
+    problem_id: Optional[int] = None
+    problem_slug: Optional[str] = None
+    problem_index: Optional[int] = None
 
 
 class SubmissionCreateRequest(BaseModel):
@@ -138,19 +151,27 @@ class SubmissionResponseSchema(BaseModel):
 
 
 class PracticeSessionResponseSchema(BaseModel):
-    """Practice session detail schema."""
+    """Practice contest session detail schema."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    name: str = ""
     problem_id: int
     problem: ProblemResponseSchema
+    problem_ids: List[int] = Field(default_factory=list)
+    problems: List[ProblemResponseSchema] = Field(default_factory=list)
+    current_problem_index: int = 0
+    problem_statuses: Dict[str, str] = Field(default_factory=dict)
+    num_problems: int = 1
+    solved_count: int = 0
     status: str
     is_manual_selection: bool
     started_at: datetime
     finished_at: Optional[datetime] = None
     total_duration_seconds: Optional[float] = None
     target_time_seconds: Optional[float] = None
+    total_target_time_seconds: Optional[float] = None
     is_successful: Optional[bool] = None
     submission_count: int
     submissions: List[SubmissionResponseSchema] = Field(default_factory=list)

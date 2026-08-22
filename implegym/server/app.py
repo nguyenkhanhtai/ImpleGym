@@ -1,11 +1,11 @@
-"""FastAPI server application exposing REST and WebSocket endpoints."""
-
+import hashlib
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,12 +28,40 @@ from implegym.models.schemas import (
     StartSessionRequest,
     SubmissionCreateRequest,
     SubmissionResponseSchema,
+    SwitchProblemRequest,
     TestCaseResultSchema,
 )
 from implegym.problems.catalog import ProblemCatalogService
 from implegym.problems.indexer import ProblemIndexer
 from implegym.sampler.distribution import GaussianSampler
 from implegym.session.tracker import SessionTracker
+
+
+def generate_etag(data: Any) -> str:
+    """Generate MD5 ETag header value for serializable response data."""
+    raw = json.dumps(data, sort_keys=True, default=str).encode("utf-8")
+    digest = hashlib.md5(raw).hexdigest()
+    return f'"{digest}"'
+
+
+def create_cached_response(
+    request: Request,
+    data: Any,
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
+    """Return 304 Not Modified if client ETag matches, or JSONResponse with ETag and Cache-Control headers."""
+    etag = generate_etag(data)
+    client_etag = request.headers.get("if-none-match")
+
+    headers = {
+        "ETag": etag,
+        "Cache-Control": "public, max-age=0, must-revalidate",
+    }
+
+    if client_etag and (client_etag.strip() == etag or etag in client_etag):
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    return JSONResponse(content=data, status_code=status_code, headers=headers)
 
 
 @asynccontextmanager
@@ -76,17 +104,20 @@ async def get_compilers() -> List[CompilerProfileSchema]:
     return compiler_manager.get_available_profiles()
 
 
-@app.get("/api/categories", response_model=List[str])
+@app.get("/api/categories")
 async def get_categories(
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
-) -> List[str]:
-    """List unique problem categories."""
+) -> Response:
+    """List unique problem categories with ETag 304 caching."""
     catalog = ProblemCatalogService(db)
-    return await catalog.get_all_categories()
+    categories = await catalog.get_all_categories()
+    return create_cached_response(request, categories)
 
 
 @app.get("/api/problems")
 async def list_problems(
+    request: Request,
     search: Optional[str] = None,
     category: Optional[str] = None,
     min_difficulty: int = Query(default=1, ge=1, le=10),
@@ -96,8 +127,8 @@ async def list_problems(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
-    """Search and filter problem catalog."""
+) -> Response:
+    """Search and filter problem catalog with ETag 304 caching."""
     params = ProblemFilterParams(
         search=search,
         category=category,
@@ -111,13 +142,14 @@ async def list_problems(
     catalog = ProblemCatalogService(db)
     items, total = await catalog.list_problems(params)
     total_pages = max(1, (total + page_size - 1) // page_size) if total > 0 else 0
-    return {
-        "items": items,
+    data = {
+        "items": [item.model_dump(mode="json") for item in items],
         "total": total,
         "page": page,
         "page_size": page_size,
         "total_pages": total_pages,
     }
+    return create_cached_response(request, data)
 
 
 @app.post("/api/problems/sync")
@@ -151,16 +183,16 @@ async def sync_single_yosupo_problem(
     }
 
 
-@app.get("/api/problems/{slug}", response_model=ProblemResponseSchema)
+@app.get("/api/problems/{slug}")
 async def get_problem(
-    slug: str, db: AsyncSession = Depends(get_db_session)
-) -> ProblemResponseSchema:
-    """Retrieve problem details by slug."""
+    slug: str, request: Request, db: AsyncSession = Depends(get_db_session)
+) -> Response:
+    """Retrieve problem details by slug with ETag 304 caching."""
     catalog = ProblemCatalogService(db)
     prob = await catalog.get_by_slug(slug)
     if not prob:
         raise HTTPException(status_code=404, detail="Problem not found")
-    return prob
+    return create_cached_response(request, prob.model_dump(mode="json"))
 
 
 @app.patch("/api/problems/{slug}", response_model=ProblemResponseSchema)
@@ -181,48 +213,82 @@ async def update_problem(
 async def start_session(
     req: StartSessionRequest, db: AsyncSession = Depends(get_db_session)
 ) -> PracticeSessionResponseSchema:
-    """Start workout session via manual slug or Gaussian sampling."""
+    """Start workout contest session via manual slugs or Gaussian sampling (N problems, max 14)."""
     catalog = ProblemCatalogService(db)
-    target_prob: Optional[ProblemResponseSchema] = None
+    resolved_problem_ids: List[int] = []
+    is_manual = False
 
-    if req.problem_slug:
+    if req.problem_slugs:
+        for slug in req.problem_slugs[:14]:
+            prob = await catalog.get_by_slug(slug)
+            if prob:
+                resolved_problem_ids.append(prob.id)
+        if not resolved_problem_ids:
+            raise HTTPException(status_code=404, detail="No matching problems found")
+        is_manual = True
+    elif req.problem_slug:
         target_prob = await catalog.get_by_slug(req.problem_slug)
         if not target_prob:
             raise HTTPException(status_code=404, detail="Problem not found")
+        resolved_problem_ids = [target_prob.id]
         is_manual = True
-    elif req.sampler_config:
+    else:
+        sampler_cfg = req.sampler_config or SamplerConfigSchema()
+        target_count = req.num_problems
+        if target_count <= 1 and sampler_cfg.num_problems > 1:
+            target_count = sampler_cfg.num_problems
+        count = max(1, min(14, target_count or 1))
         sampler = GaussianSampler(db)
-        target_prob = await sampler.sample_problem(req.sampler_config)
-        if not target_prob:
+        sampled = await sampler.sample_problems(sampler_cfg, count=count)
+        if not sampled:
             raise HTTPException(
                 status_code=404, detail="No matching problems found for sampler configuration"
             )
-        is_manual = False
-    else:
-        # Default sampling
-        sampler = GaussianSampler(db)
-        target_prob = await sampler.sample_problem(SamplerConfigSchema())
-        if not target_prob:
-            raise HTTPException(status_code=404, detail="No problems in database")
+        resolved_problem_ids = [p.id for p in sampled]
         is_manual = False
 
     tracker = SessionTracker(db)
-    return await tracker.start_session(target_prob.id, is_manual_selection=is_manual)
+    return await tracker.start_session(
+        problem_ids=resolved_problem_ids,
+        name=req.name,
+        is_manual_selection=is_manual,
+    )
 
 
-@app.post("/api/sampler/sample", response_model=ProblemResponseSchema)
+@app.post("/api/session/switch-problem", response_model=PracticeSessionResponseSchema)
+async def switch_session_problem_endpoint(
+    req: SwitchProblemRequest, db: AsyncSession = Depends(get_db_session)
+) -> PracticeSessionResponseSchema:
+    """Switch active problem within a contest workout session."""
+    tracker = SessionTracker(db)
+    try:
+        return await tracker.switch_session_problem(
+            session_id=req.session_id,
+            problem_id=req.problem_id,
+            problem_slug=req.problem_slug,
+            problem_index=req.problem_index,
+        )
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
+
+
+@app.post("/api/sampler/sample")
 async def sample_problem_endpoint(
     config: SamplerConfigSchema = Body(default_factory=SamplerConfigSchema),
+    count: Optional[int] = Query(default=None, ge=1, le=14),
     db: AsyncSession = Depends(get_db_session),
-) -> ProblemResponseSchema:
-    """Sample a problem matching configuration filters without immediately creating a session."""
+) -> Any:
+    """Sample N problems (1..14) matching configuration filters without immediately creating a session."""
     sampler = GaussianSampler(db)
-    prob = await sampler.sample_problem(config)
-    if not prob:
+    num_to_sample = count or config.num_problems or 1
+    probs = await sampler.sample_problems(config, count=num_to_sample)
+    if not probs:
         raise HTTPException(
             status_code=404, detail="No problems found matching sampling criteria"
         )
-    return prob
+    if num_to_sample == 1:
+        return probs[0]
+    return probs
 
 
 @app.get("/api/session/active", response_model=Optional[PracticeSessionResponseSchema])
@@ -232,6 +298,19 @@ async def get_active_session(
     """Get active workout session and current stopwatch status."""
     tracker = SessionTracker(db)
     return await tracker.get_active_session()
+
+
+@app.get("/api/session/{session_id}", response_model=Optional[PracticeSessionResponseSchema])
+async def get_session_by_id(
+    session_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> Optional[PracticeSessionResponseSchema]:
+    """Retrieve details for a specific contest session."""
+    tracker = SessionTracker(db)
+    sess = await tracker.get_session(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Contest session not found")
+    return sess
 
 
 @app.post("/api/session/stop", response_model=Optional[PracticeSessionResponseSchema])

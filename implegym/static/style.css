@@ -561,20 +561,22 @@ select:focus {
 .code-area-wrapper {
   flex: 1;
   display: flex;
+  min-height: 480px;
 }
 
 #code-editor {
   width: 100%;
-  height: 100%;
+  min-height: 480px;
   background-color: var(--bg-input);
   color: #f1f5f9;
   font-family: var(--font-mono);
   font-size: 0.95rem;
-  padding: 1rem;
+  padding: 1.25rem;
   border: none;
-  resize: none;
+  resize: vertical;
   outline: none;
-  line-height: 1.5;
+  line-height: 1.6;
+  tab-size: 4;
 }
 
 /* Verdict Container */
@@ -800,3 +802,300 @@ select:focus {
   cursor: default;
   color: var(--text-muted);
 }
+
+/* Contest HUD & Multi-Problem Switcher Styles */
+.contest-hud-container {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 0.75rem;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.contest-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.contest-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.contest-trophy {
+  font-size: 1.3rem;
+}
+
+.contest-name-heading {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.contest-progress-badge {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.contest-meta-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.contest-target-badge {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.4rem;
+}
+
+.contest-problem-tabs-scroller {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.5rem 0;
+  scrollbar-width: thin;
+}
+
+.contest-problem-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.5rem;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.contest-problem-tab:hover {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.contest-problem-tab.active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #818cf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.contest-problem-tab.solved {
+  border-color: rgba(16, 185, 129, 0.6);
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.contest-problem-tab.solved.active {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.contest-problem-tab .tab-status-icon {
+  font-size: 0.9rem;
+}
+
+/* Contest Selection Bar & Tabs */
+.contest-selection-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.contest-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.5rem;
+}
+
+.contest-bar-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.contest-bar-trophy {
+  font-size: 1.3rem;
+}
+
+.contest-bar-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.btn-create-contest-plus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-create-contest-plus:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.6);
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+}
+
+.contest-tabs-scroller {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.5rem 0;
+  scrollbar-width: thin;
+}
+
+.contest-session-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 0.55rem;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.contest-session-tab:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.contest-session-tab.active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #818cf8;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+}
+
+.contest-session-tab.status-ac {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.contest-session-tab.status-ac.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+}
+
+.contest-tab-badge {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.contest-tab-badge.badge-active {
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+}
+
+.contest-tab-badge.badge-ac {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.contest-tab-badge.badge-stopped {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.contest-tab-plus-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 0.5rem;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px dashed rgba(99, 102, 241, 0.5);
+  color: #818cf8;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.contest-tab-plus-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: #a5b4fc;
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.empty-contest-hero {
+  text-align: center;
+  padding: 3.5rem 1.5rem;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: 0.75rem;
+  margin: 1rem 0;
+}
+
+.empty-contest-hero h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.empty-contest-hero p {
+  color: var(--text-muted);
+  max-width: 500px;
+  margin: 0 auto 1.5rem auto;
+  font-size: 0.95rem;
+}
+
+

@@ -105,7 +105,9 @@ function initExplorerFilters() {
   }
 }
 
-// Load Problem Explorer Table with Pagination
+const problemListCache = new Map();
+
+// Load Problem Explorer Table with Pagination and ETag 304 Caching
 async function loadProblems(page = 1) {
   currentProblemPage = page;
   const search = document.getElementById("search-input")?.value || "";
@@ -125,9 +127,45 @@ async function loadProblems(page = 1) {
   url.searchParams.append("page", currentProblemPage);
   url.searchParams.append("page_size", currentProblemPageSize);
 
+  const cacheKey = url.toString();
+  let cached = problemListCache.get(cacheKey);
+  if (!cached) {
+    try {
+      const stored = sessionStorage.getItem(`cache_${cacheKey}`);
+      if (stored) cached = JSON.parse(stored);
+    } catch (e) {}
+  }
+
+  // Instant render from cache on page return
+  if (cached && cached.data) {
+    totalProblemsCount = cached.data.total;
+    totalProblemPages = cached.data.total_pages;
+    renderProblemTable(cached.data.items);
+    renderPaginationControls(cached.data);
+  }
+
+  const headers = {};
+  if (cached && cached.etag) {
+    headers["If-None-Match"] = cached.etag;
+  }
+
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers });
+    if (res.status === 304) {
+      // 304 Not Modified - cached data is completely fresh and already rendered!
+      return;
+    }
+
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const data = await res.json();
+    const etag = res.headers.get("ETag");
+
+    const cacheEntry = { etag, data };
+    problemListCache.set(cacheKey, cacheEntry);
+    try {
+      sessionStorage.setItem(`cache_${cacheKey}`, JSON.stringify(cacheEntry));
+    } catch (e) {}
+
     totalProblemsCount = data.total;
     totalProblemPages = data.total_pages;
     renderProblemTable(data.items);
@@ -249,6 +287,8 @@ async function changeProblemDifficulty(slug, newDiff) {
     if (!res.ok) throw new Error("Failed to update difficulty");
     const updated = await res.json();
     console.log(`Updated ${slug} difficulty to ${updated.difficulty}`);
+    problemListCache.clear();
+    sessionStorage.clear();
     loadProblems(currentProblemPage);
   } catch (err) {
     alert("Error updating difficulty: " + err.message);

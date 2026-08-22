@@ -49,38 +49,83 @@ class ProblemCatalogService:
         result = await self.session.execute(query)
         problems = result.scalars().all()
 
-        # Enrich with solved status and best time
+        # Batch-fetch solve statistics for all problems on the page
         enriched: List[ProblemResponseSchema] = []
-        for prob in problems:
-            solved, successful, best_time = await self._get_solve_stats(prob.id, prob.difficulty)
-            if params.solved_status == "successful" and not successful:
-                continue
-            if params.solved_status == "solved" and not solved:
-                continue
-            if params.solved_status == "unsolved" and solved:
-                continue
-            schema = ProblemResponseSchema(
-                id=prob.id,
-                slug=prob.slug,
-                title=prob.title,
-                category=prob.category,
-                difficulty=prob.difficulty,
-                statement=prob.statement,
-                input_format=prob.input_format,
-                output_format=prob.output_format,
-                constraints=prob.constraints,
-                sample_cases=prob.sample_cases,
-                time_limit=prob.time_limit,
-                memory_limit_mb=prob.memory_limit_mb,
-                tags=prob.tags,
-                source=prob.source,
-                is_difficulty_customized=getattr(prob, "is_difficulty_customized", False),
-                created_at=prob.created_at,
-                is_solved=solved,
-                is_successful=successful,
-                best_time_seconds=best_time,
+        if problems:
+            prob_ids = [p.id for p in problems]
+
+            # 1. Best AC duration per problem
+            sess_stmt = (
+                select(
+                    PracticeSession.problem_id,
+                    func.min(PracticeSession.total_duration_seconds).label("best_duration"),
+                )
+                .where(
+                    PracticeSession.problem_id.in_(prob_ids),
+                    PracticeSession.status == "ac",
+                    PracticeSession.total_duration_seconds.isnot(None),
+                )
+                .group_by(PracticeSession.problem_id)
             )
-            enriched.append(schema)
+            sess_res = await self.session.execute(sess_stmt)
+            best_session_map = {row.problem_id: row.best_duration for row in sess_res.all()}
+
+            # 2. Standalone AC submission count per problem
+            sub_stmt = (
+                select(
+                    Submission.problem_id,
+                    func.count(Submission.id).label("ac_count"),
+                )
+                .where(
+                    Submission.problem_id.in_(prob_ids),
+                    Submission.verdict == "AC",
+                )
+                .group_by(Submission.problem_id)
+            )
+            sub_res = await self.session.execute(sub_stmt)
+            ac_count_map = {row.problem_id: row.ac_count for row in sub_res.all()}
+
+            for prob in problems:
+                best_time = best_session_map.get(prob.id)
+                target_seconds = prob.difficulty * 5 * 60.0
+
+                if best_time is not None:
+                    solved = True
+                    successful = best_time <= target_seconds
+                else:
+                    ac_count = ac_count_map.get(prob.id, 0)
+                    solved = ac_count > 0
+                    successful = False
+
+                if params.solved_status == "successful" and not successful:
+                    continue
+                if params.solved_status == "solved" and not solved:
+                    continue
+                if params.solved_status == "unsolved" and solved:
+                    continue
+
+                schema = ProblemResponseSchema(
+                    id=prob.id,
+                    slug=prob.slug,
+                    title=prob.title,
+                    category=prob.category,
+                    difficulty=prob.difficulty,
+                    statement=prob.statement,
+                    input_format=prob.input_format,
+                    output_format=prob.output_format,
+                    constraints=prob.constraints,
+                    sample_cases=prob.sample_cases,
+                    time_limit=prob.time_limit,
+                    memory_limit_mb=prob.memory_limit_mb,
+                    tags=prob.tags,
+                    source=prob.source,
+                    is_difficulty_customized=getattr(prob, "is_difficulty_customized", False),
+                    created_at=prob.created_at,
+                    is_solved=solved,
+                    is_successful=successful,
+                    best_time_seconds=best_time,
+                )
+                enriched.append(schema)
 
         return enriched, total_count
 

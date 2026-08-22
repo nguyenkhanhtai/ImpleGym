@@ -141,6 +141,135 @@ function parseUtcDate(dateStr) {
 
 // Initialize Global Modals (Gaussian Sampler & AI Settings)
 function initCommonModals() {
+  // Contest Creation Modal
+  const contestModal = document.getElementById("contest-modal");
+  const openContestBtn = document.getElementById("btn-create-contest");
+  const closeContestBtn = document.getElementById("btn-close-contest-modal");
+  const launchContestBtn = document.getElementById("btn-launch-contest");
+  const contestNumSlider = document.getElementById("contest-num-problems");
+  const contestNumVal = document.getElementById("contest-num-val");
+  const contestMeanSlider = document.getElementById("contest-mean");
+  const contestMeanVal = document.getElementById("contest-mean-val");
+  const contestStdSlider = document.getElementById("contest-std");
+  const contestStdVal = document.getElementById("contest-std-val");
+  const contestNameInput = document.getElementById("contest-name-input");
+  const contestCategorySelect = document.getElementById("contest-category-select");
+
+  if (openContestBtn && contestModal) {
+    openContestBtn.addEventListener("click", async () => {
+      contestModal.style.display = "flex";
+      const now = new Date();
+      const defaultDateHour = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      if (contestNameInput) {
+        contestNameInput.placeholder = `Gym Contest - ${defaultDateHour}`;
+      }
+
+      // Load categories if select exists and is empty
+      if (contestCategorySelect && contestCategorySelect.options.length <= 1) {
+        try {
+          const res = await fetch("/api/categories");
+          if (res.ok) {
+            const categories = await res.json();
+            categories.forEach((cat) => {
+              const opt = document.createElement("option");
+              opt.value = cat;
+              opt.textContent = cat;
+              contestCategorySelect.appendChild(opt);
+            });
+          }
+        } catch (e) {
+          console.warn("Could not load categories for contest modal:", e);
+        }
+      }
+    });
+  }
+
+  if (closeContestBtn && contestModal) {
+    closeContestBtn.addEventListener("click", () => {
+      contestModal.style.display = "none";
+    });
+  }
+
+  if (contestNumSlider && contestNumVal) {
+    contestNumSlider.addEventListener("input", (e) => {
+      contestNumVal.textContent = e.target.value;
+    });
+  }
+
+  if (contestMeanSlider && contestMeanVal) {
+    contestMeanSlider.addEventListener("input", (e) => {
+      contestMeanVal.textContent = e.target.value;
+    });
+  }
+
+  if (contestStdSlider && contestStdVal) {
+    contestStdSlider.addEventListener("input", (e) => {
+      contestStdVal.textContent = e.target.value;
+    });
+  }
+
+  if (launchContestBtn && contestModal) {
+    launchContestBtn.addEventListener("click", async () => {
+      const numProblems = contestNumSlider ? parseInt(contestNumSlider.value, 10) : 3;
+      const mean = contestMeanSlider ? parseFloat(contestMeanSlider.value) : 5.5;
+      const std = contestStdSlider ? parseFloat(contestStdSlider.value) : 1.5;
+      const skew = document.querySelector('input[name="contest-skew"]:checked')?.value || "balanced";
+      const category = contestCategorySelect?.value?.trim() || null;
+      const excludeSolved = document.getElementById("contest-exclude-solved")?.checked || false;
+      const customName = contestNameInput?.value?.trim() || null;
+
+      launchContestBtn.disabled = true;
+      launchContestBtn.textContent = "🚀 Creating Contest...";
+
+      try {
+        const res = await fetch("/api/session/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: customName,
+            num_problems: numProblems,
+            sampler_config: {
+              mean_difficulty: mean,
+              standard_deviation: std,
+              std_dev: std,
+              skewness: skew,
+              category: category,
+              exclude_solved: excludeSolved,
+              num_problems: numProblems,
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Failed to create contest");
+        }
+
+        const session = await res.json();
+        contestModal.style.display = "none";
+
+        // Remove stale query string from URL
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, "", "/gym");
+        }
+
+        if (window.location.pathname.startsWith("/gym") && typeof window.setWorkoutSession === "function") {
+          window.setWorkoutSession(session);
+          if (typeof window.loadContestsList === "function") {
+            window.loadContestsList(session.id);
+          }
+        } else {
+          window.location.href = "/gym";
+        }
+      } catch (err) {
+        alert("Contest creation error: " + err.message);
+      } finally {
+        launchContestBtn.disabled = false;
+        launchContestBtn.textContent = "🚀 Launch Contest & Start Stopwatch";
+      }
+    });
+  }
+
   // Gaussian Sampler Modal
   const samplerModal = document.getElementById("sampler-modal");
   const openSamplerBtn = document.getElementById("btn-quick-sample");

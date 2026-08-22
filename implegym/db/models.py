@@ -67,13 +67,19 @@ class Problem(Base):
 
 
 class PracticeSession(Base):
-    """Practice workout session entity."""
+    """Practice workout contest session entity."""
 
     __tablename__ = "practice_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(256), default="", nullable=False)
     problem_id: Mapped[int] = mapped_column(Integer, ForeignKey("problems.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)  # active, ac, abandoned
+    problem_ids: Mapped[List[int]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)
+    current_problem_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    problem_statuses: Mapped[Dict[str, str]] = mapped_column(
+        SQLiteCompatibleJSON, default=dict, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)  # active, ac, abandoned, stopped
     is_manual_selection: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -6,6 +6,7 @@ let currentProblem = null;
 let activeSession = null;
 let stopwatchInterval = null;
 let currentSubmissionId = null;
+let allContestSessions = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   await initCompilers();
@@ -32,39 +33,189 @@ async function initCompilers() {
   }
 }
 
-// Check URL Params for ?slug= or fetch active session
-async function checkUrlOrActiveSession() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const slug = urlParams.get("slug");
+// Load and Render Contest Sessions Tabs
+async function loadContestsList(activeSessionId = null) {
+  const tabsContainer = document.getElementById("contest-session-tabs");
+  if (!tabsContainer) return;
 
-  if (slug) {
-    // Check if there is already an active in-progress session for this problem
-    try {
-      const activeRes = await fetch("/api/session/active");
-      if (activeRes.ok) {
-        const sess = await activeRes.json();
-        if (sess && sess.problem && sess.problem.slug === slug && sess.status === "in_progress") {
-          setWorkoutSession(sess);
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn("Could not check active session:", e);
+  try {
+    const res = await fetch("/api/history/sessions?limit=50");
+    if (!res.ok) return;
+    allContestSessions = await res.json();
+
+    tabsContainer.innerHTML = "";
+
+    if (!allContestSessions || allContestSessions.length === 0) {
+      tabsContainer.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No contests created yet. Click "+" to create one!</span>`;
+      const emptyHero = document.getElementById("empty-contest-hero");
+      if (emptyHero && !activeSession) emptyHero.style.display = "block";
+      return;
     }
 
-    // Otherwise load problem in Preview / Ready mode
-    await loadProblemPreview(slug);
-  } else {
-    await checkActiveSession();
+    const emptyHero = document.getElementById("empty-contest-hero");
+    if (emptyHero) emptyHero.style.display = "none";
+
+    const currentActiveId = activeSessionId || (activeSession ? activeSession.id : null);
+
+    allContestSessions.forEach((sess) => {
+      const tab = document.createElement("button");
+      const isActive = currentActiveId === sess.id;
+      const isAc = sess.status === "ac";
+      const isRunning = sess.status === "active";
+
+      let classNames = ["contest-session-tab"];
+      if (isActive) classNames.push("active");
+      if (isAc) classNames.push("status-ac");
+
+      let badgeClass = "badge-stopped";
+      let badgeText = "STOPPED";
+      if (isRunning) {
+        badgeClass = "badge-active";
+        badgeText = "ACTIVE";
+      } else if (isAc) {
+        badgeClass = "badge-ac";
+        badgeText = `${sess.solved_count}/${sess.num_problems} AC`;
+      } else if (sess.solved_count > 0) {
+        badgeClass = "badge-stopped";
+        badgeText = `${sess.solved_count}/${sess.num_problems} SOLVED`;
+      }
+
+      tab.className = classNames.join(" ");
+      tab.innerHTML = `
+        <span>🏆 ${sess.name || `Contest #${sess.id}`}</span>
+        <span class="contest-tab-badge ${badgeClass}">${badgeText}</span>
+      `;
+
+      tab.addEventListener("click", async () => {
+        await selectContestSession(sess.id);
+      });
+
+      tabsContainer.appendChild(tab);
+    });
+
+    // Append "+" quick create button at end of tabs
+    const plusBtn = document.createElement("button");
+    plusBtn.className = "contest-tab-plus-btn";
+    plusBtn.id = "btn-add-contest-tab";
+    plusBtn.title = "Create New Contest";
+    plusBtn.textContent = "+";
+    plusBtn.addEventListener("click", () => {
+      const modal = document.getElementById("contest-modal");
+      if (modal) modal.style.display = "flex";
+    });
+    tabsContainer.appendChild(plusBtn);
+
+  } catch (err) {
+    console.error("Failed to load contests list:", err);
   }
 }
 
-// Load problem in Preview / Ready mode
-async function loadProblemPreview(slug) {
+// Select and load a contest session
+async function selectContestSession(sessionId) {
   try {
-    const res = await fetch(`/api/problems/${encodeURIComponent(slug)}`);
+    const res = await fetch(`/api/session/${sessionId}`);
+    if (!res.ok) throw new Error("Failed to load contest session");
+    const session = await res.json();
+    setWorkoutSession(session);
+    await loadContestsList(session.id);
+  } catch (err) {
+    alert("Error loading contest session: " + err.message);
+  }
+}
+
+// Check URL Params for ?slug= or fetch active / latest session
+async function checkUrlOrActiveSession() {
+  let loadedSession = null;
+
+  // 1. First check if there is an active session on the server
+  try {
+    const activeRes = await fetch("/api/session/active");
+    if (activeRes.ok) {
+      const sess = await activeRes.json();
+      if (sess && (sess.status === "active" || sess.status === "in_progress")) {
+        loadedSession = sess;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not check active session:", e);
+  }
+
+  // 2. If active session exists, load it
+  if (loadedSession) {
+    setWorkoutSession(loadedSession);
+    await loadContestsList(loadedSession.id);
+    return;
+  }
+
+  // 3. Check for ?slug= to preview single problem
+  const urlParams = new URLSearchParams(window.location.search);
+  const slug = urlParams.get("slug");
+  if (slug) {
+    await loadProblemPreview(slug);
+    await loadContestsList();
+    return;
+  }
+
+  // 4. Otherwise load the most recent contest session
+  try {
+    const histRes = await fetch("/api/history/sessions?limit=1");
+    if (histRes.ok) {
+      const historyList = await histRes.json();
+      if (historyList && historyList.length > 0) {
+        setWorkoutSession(historyList[0]);
+        await loadContestsList(historyList[0].id);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not check history sessions:", e);
+  }
+
+  // 5. If absolutely no sessions exist, show empty state
+  await loadContestsList();
+  const emptyHero = document.getElementById("empty-contest-hero");
+  if (emptyHero) emptyHero.style.display = "block";
+}
+
+const gymProblemDetailCache = new Map();
+
+// Load problem in Preview / Ready mode with ETag 304 caching
+async function loadProblemPreview(slug) {
+  const cacheKey = `gym_prob_${slug}`;
+  let cached = gymProblemDetailCache.get(cacheKey);
+  if (!cached) {
+    try {
+      const stored = sessionStorage.getItem(cacheKey);
+      if (stored) cached = JSON.parse(stored);
+    } catch (e) {}
+  }
+
+  // Instant render from cache
+  if (cached && cached.data) {
+    setProblemPreview(cached.data);
+  }
+
+  const headers = {};
+  if (cached && cached.etag) {
+    headers["If-None-Match"] = cached.etag;
+  }
+
+  try {
+    const res = await fetch(`/api/problems/${encodeURIComponent(slug)}`, { headers });
+    if (res.status === 304) {
+      // 304 Not Modified - cached data is fresh and already set!
+      return;
+    }
     if (!res.ok) throw new Error("Problem not found");
     const prob = await res.json();
+    const etag = res.headers.get("ETag");
+
+    const entry = { etag, data: prob };
+    gymProblemDetailCache.set(cacheKey, entry);
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify(entry));
+    } catch (e) {}
+
     setProblemPreview(prob);
   } catch (err) {
     alert("Error loading problem: " + err.message);
@@ -170,6 +321,10 @@ function setProblemPreview(prob) {
   // Hide any previous verdict
   const verdictContainer = document.getElementById("verdict-container");
   if (verdictContainer) verdictContainer.style.display = "none";
+
+  // Hide contest tabs when in preview mode
+  const contestContainer = document.getElementById("contest-hud-container");
+  if (contestContainer) contestContainer.style.display = "none";
 }
 
 // Start Practice & Stopwatch (Triggered on click "Start Practice")
@@ -202,6 +357,8 @@ async function startPractice() {
   }
 }
 
+const problemCodeDrafts = new Map();
+
 // Populate Active Workout Session in UI (Timer running / restored)
 function setWorkoutSession(session) {
   activeSession = session;
@@ -222,6 +379,9 @@ function setWorkoutSession(session) {
   if (targetTimeElem) {
     targetTimeElem.innerHTML = `🎯 Target: <b>${prob.difficulty * 5}m</b>`;
   }
+
+  // Render Contest HUD & Problem Tabs
+  renderContestTabs(session);
 
   // Render Markdown + Protected LaTeX Statement
   const stmtBody = document.getElementById("stmt-body");
@@ -270,6 +430,110 @@ function setWorkoutSession(session) {
   const totalDur = session.total_duration_seconds !== undefined ? session.total_duration_seconds : null;
   startStopwatch(session.started_at, session.finished_at, session.status, totalDur);
 }
+
+// Render Contest Header & Problem Switcher Tabs
+function renderContestTabs(session) {
+  const contestContainer = document.getElementById("contest-hud-container");
+  const tabsContainer = document.getElementById("contest-problem-tabs");
+  const nameDisplay = document.getElementById("contest-name-display");
+  const progressBadge = document.getElementById("contest-progress-badge");
+  const targetDisplay = document.getElementById("contest-target-display");
+
+  if (!contestContainer || !tabsContainer) return;
+
+  const problems = session.problems && session.problems.length > 0 ? session.problems : [session.problem];
+  const numProblems = session.num_problems || problems.length;
+  const solvedCount = session.solved_count || 0;
+  const statuses = session.problem_statuses || {};
+
+  contestContainer.style.display = "flex";
+  if (nameDisplay) {
+    nameDisplay.textContent = session.name || "Gym Contest";
+  }
+  if (progressBadge) {
+    progressBadge.textContent = `${solvedCount} / ${numProblems} Solved`;
+    if (solvedCount === numProblems && numProblems > 0) {
+      progressBadge.className = "contest-progress-badge";
+      progressBadge.style.backgroundColor = "rgba(16, 185, 129, 0.35)";
+      progressBadge.style.color = "#34d399";
+    }
+  }
+  if (targetDisplay) {
+    const totalTargetSec = session.total_target_time_seconds || (session.problem.difficulty * 5 * 60);
+    targetDisplay.innerHTML = `🎯 Total Contest Target: <b>${Math.round(totalTargetSec / 60)}m</b>`;
+  }
+
+  tabsContainer.innerHTML = "";
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  problems.forEach((p, idx) => {
+    const tab = document.createElement("button");
+    const letter = letters[idx] || `${idx + 1}`;
+    const isSolved = statuses[String(p.id)] === "ac";
+    const isActive = p.id === session.problem.id;
+
+    let classNames = ["contest-problem-tab"];
+    if (isActive) classNames.push("active");
+    if (isSolved) classNames.push("solved");
+
+    tab.className = classNames.join(" ");
+    tab.innerHTML = `
+      <span class="tab-letter">${letter}.</span>
+      <span class="tab-title">${p.title}</span>
+      <span class="diff-badge diff-${p.difficulty}" style="font-size: 0.72rem; padding: 0.1rem 0.35rem;">${p.difficulty}/10</span>
+      <span class="tab-status-icon">${isSolved ? "✓" : "⏳"}</span>
+    `;
+
+    tab.addEventListener("click", () => {
+      if (p.id !== session.problem.id) {
+        switchContestProblem(p.id, idx);
+      }
+    });
+
+    tabsContainer.appendChild(tab);
+  });
+}
+
+// Switch Active Problem in Contest
+async function switchContestProblem(problemId, index) {
+  if (!activeSession) return;
+
+  // Save current code draft
+  const editor = document.getElementById("code-editor");
+  if (editor && currentProblem) {
+    problemCodeDrafts.set(currentProblem.id, editor.value);
+  }
+
+  try {
+    const res = await fetch("/api/session/switch-problem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: activeSession.id,
+        problem_id: problemId,
+        problem_index: index,
+      }),
+    });
+
+    if (!res.ok) throw new Error("Failed to switch problem");
+    const updatedSession = await res.json();
+
+    // Restore draft code if available
+    if (editor) {
+      const savedDraft = problemCodeDrafts.get(problemId);
+      if (savedDraft !== undefined) {
+        editor.value = savedDraft;
+      }
+    }
+
+    setWorkoutSession(updatedSession);
+  } catch (err) {
+    alert("Error switching problem: " + err.message);
+  }
+}
+
+window.setWorkoutSession = setWorkoutSession;
+window.loadContestsList = loadContestsList;
 
 // Live Stopwatch Manager
 function startStopwatch(startTimeStr, endTimeStr = null, status = "in_progress", totalDurationSec = null) {
@@ -350,6 +614,15 @@ function startStopwatch(startTimeStr, endTimeStr = null, status = "in_progress",
 
 // Event Listeners for Gym Page
 function initGymListeners() {
+  // Empty State Create Contest Button
+  const emptyCreateBtn = document.getElementById("btn-empty-create-contest");
+  if (emptyCreateBtn) {
+    emptyCreateBtn.addEventListener("click", () => {
+      const modal = document.getElementById("contest-modal");
+      if (modal) modal.style.display = "flex";
+    });
+  }
+
   // Start Practice Buttons
   const startBtnHud = document.getElementById("btn-start-practice");
   const startBtnBanner = document.getElementById("btn-start-practice-banner");
@@ -453,14 +726,23 @@ async function submitSolution() {
     const data = await res.json();
     renderVerdict(data.submission);
 
-    if (data.submission.verdict === "AC" || (data.session && data.session.status === "ac")) {
-      if (data.session) {
-        activeSession = data.session;
-      }
-      const startTime = activeSession ? activeSession.started_at : new Date().toISOString();
-      const endTime = (activeSession && activeSession.finished_at) || new Date().toISOString();
-      const totalDur = activeSession ? activeSession.total_duration_seconds : null;
+    if (data.session) {
+      activeSession = data.session;
+      renderContestTabs(data.session);
+    }
+
+    if (data.session && data.session.status === "ac") {
+      // Entire contest completed
+      const startTime = activeSession.started_at;
+      const endTime = activeSession.finished_at || new Date().toISOString();
+      const totalDur = activeSession.total_duration_seconds;
       startStopwatch(startTime, endTime, "ac", totalDur);
+    } else if (data.submission.verdict === "AC") {
+      // Individual problem solved in contest session
+      const progressBadge = document.getElementById("contest-progress-badge");
+      if (progressBadge && activeSession) {
+        progressBadge.textContent = `${activeSession.solved_count || 0} / ${activeSession.num_problems || 1} Solved`;
+      }
     }
   } catch (err) {
     alert("Submission error: " + err.message);

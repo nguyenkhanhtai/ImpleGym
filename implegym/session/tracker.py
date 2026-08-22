@@ -26,17 +26,21 @@ def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 class SessionTracker:
-    """Manages workout sessions, live stopwatch state, and submissions."""
+    """Manages workout contest sessions, live stopwatch state, and submissions."""
 
     def __init__(self, session: AsyncSession, judge_runner: Optional[JudgeRunner] = None) -> None:
         self.session = session
         self.judge = judge_runner or JudgeRunner()
 
     async def start_session(
-        self, problem_id: int, is_manual_selection: bool = False
+        self,
+        problem_id: Optional[int] = None,
+        problem_ids: Optional[List[int]] = None,
+        name: Optional[str] = None,
+        is_manual_selection: bool = False,
     ) -> PracticeSessionResponseSchema:
-        """Start a new workout session and start stopwatch timer."""
-        # Check if there is an active session for this problem or close previous active ones
+        """Start a new workout contest session and start stopwatch timer."""
+        # Check if there is an active session or close previous active ones
         active_stmt = (
             select(PracticeSession)
             .where(PracticeSession.status == "active")
@@ -53,8 +57,31 @@ class SessionTracker:
                 ).total_seconds()
 
         now = datetime.now(timezone.utc)
+        resolved_problem_ids: List[int] = []
+        if problem_ids:
+            resolved_problem_ids = list(problem_ids)
+        elif problem_id:
+            resolved_problem_ids = [problem_id]
+        else:
+            raise ValueError("Must provide at least one problem for session")
+
+        # Clamp max problems to 14
+        resolved_problem_ids = resolved_problem_ids[:14]
+        primary_problem_id = resolved_problem_ids[0]
+
+        # Contest name default: Gym Contest - YYYY-MM-DD HH:MM
+        contest_name = (name or "").strip()
+        if not contest_name:
+            contest_name = f"Gym Contest - {now.strftime('%Y-%m-%d %H:%M')}"
+
+        initial_statuses = {str(pid): "unsolved" for pid in resolved_problem_ids}
+
         new_session = PracticeSession(
-            problem_id=problem_id,
+            name=contest_name,
+            problem_id=primary_problem_id,
+            problem_ids=resolved_problem_ids,
+            current_problem_index=0,
+            problem_statuses=initial_statuses,
             status="active",
             is_manual_selection=is_manual_selection,
             started_at=now,
@@ -65,6 +92,53 @@ class SessionTracker:
         await self.session.refresh(new_session, ["problem", "submissions"])
 
         return await self._to_session_schema(new_session)
+
+    async def switch_session_problem(
+        self,
+        session_id: Optional[int] = None,
+        problem_id: Optional[int] = None,
+        problem_slug: Optional[str] = None,
+        problem_index: Optional[int] = None,
+    ) -> PracticeSessionResponseSchema:
+        """Switch currently active problem within an active workout contest session."""
+        stmt = (
+            select(PracticeSession)
+            .options(selectinload(PracticeSession.problem), selectinload(PracticeSession.submissions))
+        )
+        if session_id:
+            stmt = stmt.where(PracticeSession.id == session_id)
+        else:
+            stmt = stmt.where(PracticeSession.status == "active").order_by(PracticeSession.id.desc()).limit(1)
+
+        res = await self.session.execute(stmt)
+        active_sess = res.scalar_one_or_none()
+        if not active_sess:
+            raise ValueError("No active workout session found to switch problem")
+
+        target_pid = problem_id
+        if problem_slug and not target_pid:
+            prob_res = await self.session.execute(select(Problem.id).where(Problem.slug == problem_slug))
+            target_pid = prob_res.scalar_one_or_none()
+
+        problem_ids = active_sess.problem_ids or [active_sess.problem_id]
+        if problem_index is not None and 0 <= problem_index < len(problem_ids):
+            target_pid = problem_ids[problem_index]
+            active_sess.current_problem_index = problem_index
+        elif target_pid and target_pid in problem_ids:
+            active_sess.current_problem_index = problem_ids.index(target_pid)
+        elif target_pid:
+            # Add to problem ids if not present (up to 14)
+            if len(problem_ids) < 14:
+                problem_ids.append(target_pid)
+                active_sess.problem_ids = list(problem_ids)
+                active_sess.current_problem_index = len(problem_ids) - 1
+
+        if target_pid:
+            active_sess.problem_id = target_pid
+
+        await self.session.commit()
+        await self.session.refresh(active_sess, ["problem", "submissions"])
+        return await self._to_session_schema(active_sess)
 
     async def get_active_session(self) -> Optional[PracticeSessionResponseSchema]:
         """Fetch the currently active session if one exists."""
@@ -80,6 +154,19 @@ class SessionTracker:
         if not active:
             return None
         return await self._to_session_schema(active)
+
+    async def get_session(self, session_id: int) -> Optional[PracticeSessionResponseSchema]:
+        """Fetch a specific session by its ID."""
+        stmt = (
+            select(PracticeSession)
+            .where(PracticeSession.id == session_id)
+            .options(selectinload(PracticeSession.problem), selectinload(PracticeSession.submissions))
+        )
+        res = await self.session.execute(stmt)
+        sess = res.scalar_one_or_none()
+        if not sess:
+            return None
+        return await self._to_session_schema(sess)
 
     async def stop_session(
         self, session_id: Optional[int] = None
@@ -134,15 +221,20 @@ class SessionTracker:
             practice_session = sess_res.scalar_one_or_none()
 
         if not practice_session:
-            # Check for active session matching problem
+            # Check for active session containing problem
             active_stmt = (
                 select(PracticeSession)
-                .where(PracticeSession.status == "active", PracticeSession.problem_id == problem.id)
+                .where(PracticeSession.status == "active")
                 .options(selectinload(PracticeSession.problem), selectinload(PracticeSession.submissions))
+                .order_by(PracticeSession.id.desc())
                 .limit(1)
             )
             active_res = await self.session.execute(active_stmt)
-            practice_session = active_res.scalar_one_or_none()
+            cand = active_res.scalar_one_or_none()
+            if cand:
+                p_ids = cand.problem_ids or [cand.problem_id]
+                if problem.id in p_ids or cand.problem_id == problem.id:
+                    practice_session = cand
 
         # Ensure testcases are generated from info.toml and cached in the database
         has_generated = any(
@@ -186,10 +278,19 @@ class SessionTracker:
         )
         self.session.add(submission)
 
-        # Update session timer if AC
+        # Update session timer and statuses if AC
         if practice_session:
             practice_session.submission_count += 1
-            if run_res.verdict == "AC" and practice_session.status == "active":
+            statuses = dict(practice_session.problem_statuses or {})
+            if run_res.verdict == "AC":
+                statuses[str(problem.id)] = "ac"
+            practice_session.problem_statuses = statuses
+
+            # Check if all problems in contest session are AC
+            all_prob_ids = practice_session.problem_ids or [practice_session.problem_id]
+            all_solved = all(statuses.get(str(pid)) == "ac" for pid in all_prob_ids)
+
+            if all_solved and practice_session.status == "active":
                 practice_session.status = "ac"
                 now = datetime.now(timezone.utc)
                 practice_session.finished_at = now
@@ -243,6 +344,20 @@ class SessionTracker:
         prob = practice_session.problem
         prob_schema = ProblemResponseSchema.model_validate(prob)
 
+        # Retrieve all problem entities in the contest session
+        problem_ids = practice_session.problem_ids or [practice_session.problem_id]
+        probs_stmt = select(Problem).where(Problem.id.in_(problem_ids))
+        probs_res = await self.session.execute(probs_stmt)
+        loaded_problems = {p.id: p for p in probs_res.scalars().all()}
+        
+        ordered_problem_schemas = [
+            ProblemResponseSchema.model_validate(loaded_problems[pid])
+            for pid in problem_ids
+            if pid in loaded_problems
+        ]
+        if not ordered_problem_schemas:
+            ordered_problem_schemas = [prob_schema]
+
         submissions_schema = [
             SubmissionResponseSchema(
                 id=sub.id,
@@ -262,20 +377,35 @@ class SessionTracker:
         ]
 
         target_time = prob.difficulty * 5 * 60.0 if prob else 1500.0
+        total_target_time = sum(p.difficulty * 5 * 60.0 for p in ordered_problem_schemas)
+
+        statuses = practice_session.problem_statuses or {}
+        solved_count = sum(1 for pid in problem_ids if statuses.get(str(pid)) == "ac")
+
         is_successful = None
         if practice_session.status == "ac" and practice_session.total_duration_seconds is not None:
-            is_successful = practice_session.total_duration_seconds <= target_time
+            is_successful = practice_session.total_duration_seconds <= total_target_time
+
+        contest_name = practice_session.name or f"Gym Contest - #{practice_session.id}"
 
         return PracticeSessionResponseSchema(
             id=practice_session.id,
+            name=contest_name,
             problem_id=practice_session.problem_id,
             problem=prob_schema,
+            problem_ids=problem_ids,
+            problems=ordered_problem_schemas,
+            current_problem_index=practice_session.current_problem_index or 0,
+            problem_statuses=statuses,
+            num_problems=len(ordered_problem_schemas),
+            solved_count=solved_count,
             status=practice_session.status,
             is_manual_selection=practice_session.is_manual_selection,
             started_at=_to_utc(practice_session.started_at),
             finished_at=_to_utc(practice_session.finished_at),
             total_duration_seconds=practice_session.total_duration_seconds,
             target_time_seconds=target_time,
+            total_target_time_seconds=total_target_time,
             is_successful=is_successful,
             submission_count=practice_session.submission_count,
             submissions=submissions_schema,

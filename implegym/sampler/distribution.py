@@ -47,7 +47,15 @@ class GaussianSampler:
         return {int(d): float(p) for d, p in zip(difficulties, probs)}
 
     async def sample_problem(self, config: SamplerConfigSchema) -> Optional[ProblemResponseSchema]:
-        """Sample a problem from database according to configured probability distribution."""
+        """Sample a single problem from database according to configured probability distribution."""
+        probs = await self.sample_problems(config, count=1)
+        return probs[0] if probs else None
+
+    async def sample_problems(
+        self, config: SamplerConfigSchema, count: Optional[int] = None
+    ) -> List[ProblemResponseSchema]:
+        """Sample N problems (1 <= N <= 14) from database according to configured probability distribution."""
+        target_count = max(1, min(14, count if count is not None else config.num_problems))
         probs_map = self.compute_difficulty_probabilities(config)
 
         # Retrieve all candidate problems with filters
@@ -67,7 +75,7 @@ class GaussianSampler:
             ]
 
         if not candidates:
-            return None
+            return []
 
         # Filter out solved problems if requested
         if config.exclude_solved:
@@ -77,25 +85,36 @@ class GaussianSampler:
             candidates = [p for p in candidates if p.id not in solved_ids]
 
         if not candidates:
-            return None
-
-        # Group candidates by difficulty
+            return []
         diff_buckets: Dict[int, List[Problem]] = {d: [] for d in range(1, 11)}
         for p in candidates:
             diff_buckets[p.difficulty].append(p)
 
-        # Calculate effective bucket weights
-        sampled_difficulties = list(probs_map.keys())
-        sampled_weights = [
-            probs_map[d] if len(diff_buckets[d]) > 0 else 0.0 for d in sampled_difficulties
-        ]
+        chosen_problems: List[Problem] = []
+        available_candidates = list(candidates)
 
-        if sum(sampled_weights) <= 1e-12:
-            # Uniform random choice if weights all zero
-            chosen_prob = random.choice(candidates)
-        else:
-            # Weighted random choice of difficulty bucket
-            chosen_diff = random.choices(sampled_difficulties, weights=sampled_weights, k=1)[0]
-            chosen_prob = random.choice(diff_buckets[chosen_diff])
+        for _ in range(target_count):
+            if not available_candidates:
+                break
 
-        return ProblemResponseSchema.model_validate(chosen_prob)
+            # Recalculate diff buckets for remaining available candidates
+            curr_diff_buckets: Dict[int, List[Problem]] = {d: [] for d in range(1, 11)}
+            for p in available_candidates:
+                curr_diff_buckets[p.difficulty].append(p)
+
+            sampled_difficulties = list(probs_map.keys())
+            sampled_weights = [
+                probs_map[d] if len(curr_diff_buckets[d]) > 0 else 0.0 for d in sampled_difficulties
+            ]
+
+            if sum(sampled_weights) <= 1e-12:
+                chosen = random.choice(available_candidates)
+            else:
+                chosen_diff = random.choices(sampled_difficulties, weights=sampled_weights, k=1)[0]
+                chosen = random.choice(curr_diff_buckets[chosen_diff])
+
+            chosen_problems.append(chosen)
+            available_candidates.remove(chosen)
+
+        return [ProblemResponseSchema.model_validate(p) for p in chosen_problems]
+
