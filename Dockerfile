@@ -34,13 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application source
+# Copy application source and entrypoint script
 COPY implegym /app/implegym
 COPY README.md /app/README.md
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 
 ENV PORT=8000
 ENV HOST=0.0.0.0
 
-CMD ["python", "-m", "implegym.cli", "serve", "--host", "0.0.0.0", "--port", "8000", "--no-reload"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["python", "-m", "implegym.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
+
