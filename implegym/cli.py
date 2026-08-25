@@ -77,8 +77,8 @@ def sync_yosupo(
     force: bool = typer.Option(
         False, "--force", "-f", help="Force re-generation and compilation of test cases for all problems"
     ),
-    max_tests: int = typer.Option(
-        10, "--max-tests", "-n", help="Maximum generated test cases per problem (default: 10)"
+    max_tests: int | None = typer.Option(
+        None, "--max-tests", "-n", help="Optional cap on generated test cases per problem (defaults to full count in info.toml)"
     ),
 ) -> None:
     """Clone or pull official yosupo06/library-checker-problems and sync all problems to PostgreSQL."""

@@ -156,7 +156,7 @@ async def list_problems(
     return create_cached_response(request, data)
 
 
-async def _run_background_sync(force: bool = False, max_tests: int = 10) -> None:
+async def _run_background_sync(force: bool = False, max_tests: int | None = None) -> None:
     """Execute problem synchronization in background using an isolated session scope."""
     try:
         async with session_scope() as session:
@@ -174,7 +174,7 @@ async def _run_background_sync(force: bool = False, max_tests: int = 10) -> None
 async def sync_yosupo_problems(
     background: bool = Query(True, description="Run synchronization in background"),
     force: bool = Query(False, description="Force re-generation of all test cases"),
-    max_tests: int = Query(default=10, ge=1, le=50, description="Max generated tests per problem"),
+    max_tests: int | None = Query(default=None, ge=1, le=50, description="Optional cap on generated tests"),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Trigger synchronization from official yosupo06/library-checker-problems repository."""
@@ -241,7 +241,7 @@ async def cancel_sync() -> dict[str, Any]:
 @app.post("/api/problems/{slug}/generate-tests")
 async def sync_single_yosupo_problem(
     slug: str,
-    max_tests: int = Query(default=10, ge=1, le=50, description="Max generated tests"),
+    max_tests: int | None = Query(default=None, ge=1, le=50, description="Optional cap on generated tests"),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Trigger testcase generation and synchronization for a single problem by slug."""

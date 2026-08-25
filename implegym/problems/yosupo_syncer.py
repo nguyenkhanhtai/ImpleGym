@@ -110,7 +110,7 @@ class YosupoSyncer:
         category_name: str,
         problem_dir: Path,
         generate_tests: bool = True,
-        max_tests: int = 10,
+        max_tests: int | None = None,
         force_regenerate: bool = False,
     ) -> dict[str, Any] | None:
         """Parse a single Yosupo problem directory containing info.toml, task.md, and sample cases."""
@@ -192,9 +192,9 @@ class YosupoSyncer:
         progress_callback: Any | None = None,
         tracker: Any | None = None,
         force_regenerate_tests: bool = False,
-        max_tests: int = 10,
+        max_tests: int | None = None,
     ) -> int:
-        """Scan full repository and synchronize all problems into the database with progress tracking and test caching."""
+        """Scan all Yosupo problems, parse them, generate testcases incrementally, and insert into DB."""
         from implegym.problems.sync_manager import sync_progress_tracker
 
         active_tracker = tracker or sync_progress_tracker
@@ -316,7 +316,7 @@ class YosupoSyncer:
         self,
         slug: str,
         generate_tests: bool = True,
-        max_tests: int = 10,
+        max_tests: int | None = None,
         force_regenerate: bool = False,
     ) -> dict[str, Any] | None:
         """Find a specific problem by slug, parse and regenerate all testcases, and update database."""
@@ -501,7 +501,7 @@ class YosupoSyncer:
         self,
         problem_dir: Path,
         params: dict[str, Any],
-        max_tests: int = 10,
+        max_tests: int | None = None,
         target_dir: Path | None = None,
         force: bool = False,
     ) -> list[dict[str, str]]:
@@ -533,12 +533,8 @@ class YosupoSyncer:
             if not gen_dir.exists():
                 return []
 
-            MAX_GENERATED_TESTS = max_tests
-            valid_cpp_tests = [t for t in tests_config if t.get("name", "").endswith(".cpp")]
-            per_generator_count = max(2, (max_tests + len(valid_cpp_tests) - 1) // max(1, len(valid_cpp_tests)))
-
             for test_entry in tests_config:
-                if len(generated_tests) >= MAX_GENERATED_TESTS:
+                if max_tests is not None and len(generated_tests) >= max_tests:
                     break
 
                 test_name = test_entry.get("name", "")
@@ -549,9 +545,10 @@ class YosupoSyncer:
                 if not gen_file.exists():
                     continue
 
-                num_to_generate = min(int(test_entry.get("number", 1)), per_generator_count)
+                # Generate exact number specified in info.toml for this generator
+                num_to_generate = int(test_entry.get("number", 1))
                 for seed in range(1, num_to_generate + 1):
-                    if len(generated_tests) >= MAX_GENERATED_TESTS:
+                    if max_tests is not None and len(generated_tests) >= max_tests:
                         break
 
                     tc_stem = f"{gen_file.stem}_{seed:02d}"
