@@ -1118,6 +1118,24 @@ ImpleGym/
 
 ---
 
+#### User Prompt 80
+> "ruff check fail trên github rồi" (Fix ruff lint and format check failures)
+
+#### Agent Actions
+- **Ruff Lint & Formatting Fixes**:
+  1. Ran `uv run ruff check --fix .` and `uv run ruff format .`.
+  2. Fixed unused imports and sorted import blocks across CLI (`implegym/cli.py`), API (`implegym/server/app.py`), and test modules.
+  3. Fixed `B034` in `implegym/problems/yosupo_syncer.py` by passing `maxsplit=1` as keyword argument.
+  4. Fixed `C414` (unnecessary `list()` in `sorted()`) in `implegym/judge/runner.py`, `implegym/problems/yosupo_syncer.py`, and `tests/test_incremental_testcase_generation.py`.
+  5. Fixed `UP045` type annotations (`str | None` instead of `Optional[str]`) in `implegym/db/models.py`.
+  6. Re-ran `uv run ruff check .` and `uv run ruff format --check .` (0 errors) and full pytest suite (**63/63 passed**).
+- **Verification**:
+  - `ruff check`: All checks passed!
+  - `ruff format --check`: All checks passed!
+  - `pytest`: 63 passed in 27.73s.
+
+---
+
 ## 4. Execution Tracker & Results
 
 | Step | Component | Status | Verification & Notes |
