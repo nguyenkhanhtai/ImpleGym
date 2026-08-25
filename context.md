@@ -1103,19 +1103,34 @@ ImpleGym/
 
 ---
 
+#### User Prompt 79
+> "kiểu trong testcase directory mà thấy có file nào không nằm trong nhóm của info.toml dành cho thằng đó thì quit luôn nhé, xóa file đó luôn" (Automatically purge extraneous/orphan files in testcase directory not defined in info.toml)
+
+#### Agent Actions
+- **Extraneous Testcase File Purge Mechanism**:
+  1. In `_generate_testcases_from_info_toml()` ([yosupo_syncer.py:L528-L550](file:///workspace/ImpleGym/implegym/problems/yosupo_syncer.py#L528-L550)), construct the set of `valid_filenames` declared by `info.toml` (`{gen_stem}_{seed:02d}.in` and `.out`).
+  2. Scan all existing files in `data/testcases/<slug>/`:
+     - Allow official sample cases (`00_sample_*.in`, `00_sample_*.out`, `example_*.in`, `example_*.out`).
+     - Any extraneous, stale, corrupted, or unlisted file is immediately deleted with `disk_file.unlink(missing_ok=True)`.
+  3. Added `test_extraneous_file_purge_in_testcases_dir` to [`tests/test_incremental_testcase_generation.py`](file:///workspace/ImpleGym/tests/test_incremental_testcase_generation.py) to assert rogue file deletion while preserving valid files.
+- **Verification**:
+  - `63/63 tests passed in 35.44s`.
+
+---
+
 ## 4. Execution Tracker & Results
 
 | Step | Component | Status | Verification & Notes |
 | :--- | :--- | :--- | :--- |
 | 1 | `pyproject.toml`, `config.py`, `.env.example` | Completed | Modern packaging & dependency definitions |
 | 2 | PostgreSQL & SQLite Database Schema (`db/`, `alembic/`) | Completed | Alembic migrations: `e81833419e8c` -> `a1b2c3d4e5f6` -> `b2c3d4e5f6a7` |
-| 3 | On-Disk Testcase Storage & Incremental Syncer (`problems/`) | Completed | Tests stored in `data/testcases/<slug>/`, incremental caching & skipping |
+| 3 | On-Disk Testcase Storage & Incremental Syncer (`problems/`) | Completed | Tests stored in `data/testcases/<slug>/`, incremental caching, orphan purging |
 | 4 | Multi-Compiler Streaming Judge Runner (`judge/`) | Completed | Kernel file streaming (`stdin=open(file, 'rb')`), C++17/20/23, Clang, Python |
 | 5 | Session Tracker & Stopwatch Engine (`session/`) | Completed | Fair timer pause during judging, on-demand test generation, AC stopwatch stop |
 | 6 | Gaussian & Skew-Normal Sampler (`sampler/`) | Completed | Bounded $\mathcal{N}(\mu, \sigma^2)$ and Azzalini skew-normal sampling |
 | 7 | AI Refiner & Problem Generator (`ai/`) | Completed | OpenAI GPT-4o CP code refinement & composite problem generator |
 | 8 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | 100% offline local vendor KaTeX assets (< 10ms page load) |
-| 9 | Automated Test Suites (`tests/`) | Completed | 62 passed tests (Unit, Integration, Benchmarks, Differential) |
+| 9 | Automated Test Suites (`tests/`) | Completed | 63 passed tests (Unit, Integration, Benchmarks, Differential) |
 
 
 
