@@ -106,7 +106,12 @@ class YosupoSyncer:
             return res.returncode == 0
 
     def parse_problem_directory(
-        self, category_name: str, problem_dir: Path, generate_tests: bool = True
+        self,
+        category_name: str,
+        problem_dir: Path,
+        generate_tests: bool = True,
+        max_tests: int = 10,
+        force_regenerate: bool = False,
     ) -> dict[str, Any] | None:
         """Parse a single Yosupo problem directory containing info.toml, task.md, and sample cases."""
         info_toml = problem_dir / "info.toml"
@@ -136,15 +141,31 @@ class YosupoSyncer:
             raw_markdown, params
         )
 
-        # 3. Extract sample cases and conditionally generate testcases from info.toml
+        # 3. Extract lightweight sample cases and write to disk
         sample_cases = self._extract_sample_cases(problem_dir, raw_markdown)[:2]
-        if generate_tests:
-            generated_tests = self._generate_testcases_from_info_toml(problem_dir, params)
-            all_testcases = sample_cases + generated_tests
-        else:
-            all_testcases = sample_cases
+        testcases_dir_path = Path("data") / "testcases" / slug
+        testcases_dir_path.mkdir(parents=True, exist_ok=True)
 
-        # 4. Compute Difficulty (1..10)
+        # Save official sample cases to disk as 00_sample_*.in and .out
+        for idx, sc in enumerate(sample_cases):
+            ex_in = testcases_dir_path / f"00_sample_{idx:02d}.in"
+            ex_out = testcases_dir_path / f"00_sample_{idx:02d}.out"
+            if not ex_in.exists() or force_regenerate:
+                ex_in.write_text(sc.get("input", ""), encoding="utf-8")
+            if not ex_out.exists() or force_regenerate:
+                ex_out.write_text(sc.get("output", ""), encoding="utf-8")
+
+        # 4. Generate additional tests on disk incrementally
+        if generate_tests:
+            self._generate_testcases_from_info_toml(
+                problem_dir,
+                params,
+                max_tests=max_tests,
+                target_dir=testcases_dir_path,
+                force=force_regenerate,
+            )
+
+        # 5. Compute Difficulty (1..10)
         difficulty = self._calculate_difficulty(slug, category_name, problem_dir)
 
         category_display = category_name.replace("_", " ").title()
@@ -158,7 +179,8 @@ class YosupoSyncer:
             "input_format": input_fmt,
             "output_format": output_fmt,
             "constraints": constraints,
-            "sample_cases": all_testcases if all_testcases else sample_cases,
+            "sample_cases": sample_cases,
+            "testcases_dir": str(testcases_dir_path).replace("\\", "/"),
             "time_limit": time_limit,
             "memory_limit_mb": 1024,
             "tags": [category_name, slug],
@@ -170,58 +192,35 @@ class YosupoSyncer:
         progress_callback: Any | None = None,
         tracker: Any | None = None,
         force_regenerate_tests: bool = False,
+        max_tests: int = 10,
     ) -> int:
         """Scan full repository and synchronize all problems into the database with progress tracking and test caching."""
         from implegym.problems.sync_manager import sync_progress_tracker
 
         active_tracker = tracker or sync_progress_tracker
+        active_tracker.start(
+            total=1,
+            message="Initializing Yosupo repository...",
+        )
 
-        active_tracker.start(total=0, message="Updating official Yosupo repository...")
-        if progress_callback:
-            try:
-                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
-                if asyncio.iscoroutine(res):
-                    await res
-            except Exception:
-                pass
-
-        if not self.repo_dir.exists() or not (self.repo_dir / ".git").exists():
-            self.clone_or_pull_repo()
-        else:
+        if not self.repo_dir.exists():
             self.clone_or_pull_repo()
 
         if not self.repo_dir.exists():
-            active_tracker.fail("Failed to clone or locate Yosupo repository.")
+            active_tracker.fail("Failed to clone or locate official Yosupo repository")
             return 0
 
-        # Phase 1: Pre-scan and discover all candidate directories
-        active_tracker.update(
-            stage="scanning", message="Scanning repository for problem definitions..."
-        )
-        if progress_callback:
-            try:
-                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
-                if asyncio.iscoroutine(res):
-                    await res
-            except Exception:
-                pass
-
-        problem_candidates: list[tuple[str, Path]] = []
+        # Scan all directories containing info.toml and task.md
+        problem_dirs: list[tuple[str, Path]] = []
         for root, _dirs, files in os.walk(self.repo_dir):
             if "info.toml" in files and "task.md" in files:
-                prob_path = Path(root)
-                rel_parts = prob_path.relative_to(self.repo_dir).parts
+                p_path = Path(root)
+                rel_parts = p_path.relative_to(self.repo_dir).parts
                 category = rel_parts[0] if len(rel_parts) > 1 else "general"
-                problem_candidates.append((category, prob_path))
+                problem_dirs.append((category, p_path))
 
-        total_count = len(problem_candidates)
-        active_tracker.update(
-            stage="syncing_problems",
-            total=total_count,
-            current=0,
-            synced_count=0,
-            message=f"Found {total_count} problems. Syncing definitions...",
-        )
+        total_count = len(problem_dirs)
+        active_tracker.update(total=total_count, message=f"Discovered {total_count} problems.")
         if progress_callback:
             try:
                 res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
@@ -231,10 +230,8 @@ class YosupoSyncer:
                 pass
 
         synced_count = 0
-        for idx, (category, prob_path) in enumerate(problem_candidates):
+        for idx, (category, prob_path) in enumerate(problem_dirs):
             if active_tracker.is_cancelled():
-                logger.warning("Problem synchronization cancelled by user.")
-                active_tracker.update(stage="cancelled", message="Synchronization cancelled by user.")
                 break
 
             slug = prob_path.name
@@ -266,7 +263,11 @@ class YosupoSyncer:
                 )
 
                 prob_data = self.parse_problem_directory(
-                    category, prob_path, generate_tests=needs_test_generation
+                    category,
+                    prob_path,
+                    generate_tests=needs_test_generation,
+                    max_tests=max_tests,
+                    force_regenerate=force_regenerate_tests,
                 )
                 if not prob_data:
                     continue
@@ -281,8 +282,10 @@ class YosupoSyncer:
                     existing.input_format = prob_data["input_format"]
                     existing.output_format = prob_data["output_format"]
                     existing.constraints = prob_data["constraints"]
-                    if needs_test_generation and prob_data["sample_cases"]:
+                    if prob_data.get("sample_cases"):
                         existing.sample_cases = prob_data["sample_cases"]
+                    if prob_data.get("testcases_dir"):
+                        existing.testcases_dir = prob_data["testcases_dir"]
                     existing.time_limit = prob_data["time_limit"]
                 else:
                     new_problem = Problem(**prob_data)
@@ -309,7 +312,13 @@ class YosupoSyncer:
                 pass
         return synced_count
 
-    async def sync_problem(self, slug: str) -> dict[str, Any] | None:
+    async def sync_problem(
+        self,
+        slug: str,
+        generate_tests: bool = True,
+        max_tests: int = 10,
+        force_regenerate: bool = False,
+    ) -> dict[str, Any] | None:
         """Find a specific problem by slug, parse and regenerate all testcases, and update database."""
         if not self.repo_dir.exists():
             self.clone_or_pull_repo()
@@ -331,7 +340,13 @@ class YosupoSyncer:
         if not target_path:
             return None
 
-        prob_data = self.parse_problem_directory(target_category, target_path)
+        prob_data = self.parse_problem_directory(
+            target_category,
+            target_path,
+            generate_tests=generate_tests,
+            max_tests=max_tests,
+            force_regenerate=force_regenerate,
+        )
         if not prob_data:
             return None
 
@@ -348,8 +363,10 @@ class YosupoSyncer:
             existing.input_format = prob_data["input_format"]
             existing.output_format = prob_data["output_format"]
             existing.constraints = prob_data["constraints"]
-            if prob_data["sample_cases"]:
+            if prob_data.get("sample_cases"):
                 existing.sample_cases = prob_data["sample_cases"]
+            if prob_data.get("testcases_dir"):
+                existing.testcases_dir = prob_data["testcases_dir"]
             existing.time_limit = prob_data["time_limit"]
         else:
             new_problem = Problem(**prob_data)
@@ -380,78 +397,115 @@ class YosupoSyncer:
         text = text.replace("@{keyword.constraints}", "Constraints")
         text = text.replace("@{keyword.input}", "Input Format")
         text = text.replace("@{keyword.output}", "Output Format")
+        text = text.replace("@{keyword.sample}", "Sample")
 
-        # 4. Remove sample sections from statement markdown to prevent duplicated header
-        text = re.sub(r"##\s*@?\{?keyword\.sample\}?[\s\S]*", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"##\s*Sample\s*Cases[\s\S]*", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"##\s*Samples[\s\S]*", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"@\{example\.[^}]+\}", "", text)
-
-        # 5. Convert tildes code blocks ~~~ to standard ```
-        text = text.replace("~~~", "```")
-
-        # Extract constraints section if marked
+        statement_part = text
+        input_fmt = ""
+        output_fmt = ""
         constraints = ""
-        c_match = re.search(r"##\s*Constraints", text, re.IGNORECASE)
-        if c_match:
-            c_start = c_match.end()
-            c_end = text.find("##", c_start)
-            constraints = text[c_start:c_end].strip() if c_end != -1 else text[c_start:].strip()
 
-        return text.strip(), "", "", constraints
+        # Extract subsections
+        if "## Constraints" in text:
+            parts = text.split("## Constraints", 1)
+            statement_part = parts[0].strip()
+            rest = parts[1]
+            if "## Input" in rest or "## Output" in rest:
+                sub_parts = re.split(r"##\s+(?:Input|Output)", rest, 1)
+                constraints = sub_parts[0].strip()
+            else:
+                constraints = rest.strip()
 
-    def _extract_sample_cases(self, problem_dir: Path, raw_md: str) -> list[dict[str, str]]:
-        """Extract sample cases from problem directory or gen folder, generating outputs if needed."""
-        samples: list[dict[str, str]] = []
+        if "## Input" in text:
+            in_part = text.split("## Input", 1)[1]
+            if "## Output" in in_part:
+                input_fmt = in_part.split("## Output", 1)[0].strip()
+            else:
+                input_fmt = in_part.strip()
+
+        if "## Output" in text:
+            out_part = text.split("## Output", 1)[1]
+            if "## Sample" in out_part:
+                output_fmt = out_part.split("## Sample", 1)[0].strip()
+            else:
+                output_fmt = out_part.strip()
+
+        return statement_part, input_fmt, output_fmt, constraints
+
+    def _extract_sample_cases(
+        self, problem_dir: Path, raw_md: str
+    ) -> list[dict[str, str]]:
+        """Extract sample cases from example_*.in/out files or task.md."""
+        sample_cases: list[dict[str, str]] = []
+
+        # 1. Try finding example_*.in and example_*.out in problem directory
         gen_dir = problem_dir / "gen"
-
-        # Check problem_dir and gen_dir for example_*.in and example_*.out
-        search_dirs = [problem_dir]
+        in_files: list[Path] = []
         if gen_dir.exists():
-            search_dirs.append(gen_dir)
+            in_files = sorted(list(gen_dir.glob("example_*.in")) + list(gen_dir.glob("example-*.in")) + list(gen_dir.glob("example.in")))
 
-        for s_dir in search_dirs:
-            for in_file in sorted(s_dir.glob("example_*.in")):
-                out_file = in_file.with_suffix(".out")
-                in_content = in_file.read_text(encoding="utf-8", errors="ignore").strip()
-                out_content = (
-                    out_file.read_text(encoding="utf-8", errors="ignore").strip()
-                    if out_file.exists()
-                    else ""
-                )
+        if not in_files:
+            in_files = sorted(list(problem_dir.glob("example_*.in")) + list(problem_dir.glob("example.in")))
 
-                # If output is missing, generate it via reference solution
-                if not out_content and in_content:
-                    out_content = self._generate_sample_output(problem_dir, in_file)
+        if in_files:
+            for in_f in in_files:
+                out_f = in_f.with_suffix(".out")
+                if not out_f.exists():
+                    out_f = in_f.parent / f"{in_f.stem}.out"
+                
+                in_content = in_f.read_text(encoding="utf-8", errors="ignore").strip()
+                out_content = ""
+                if out_f.exists():
+                    out_content = out_f.read_text(encoding="utf-8", errors="ignore").strip()
+                else:
+                    out_content = self._generate_sample_output(problem_dir, in_f)
 
                 if in_content:
-                    samples.append(
-                        {
-                            "input": in_content + "\n",
-                            "output": (out_content + "\n") if out_content else "",
-                        }
-                    )
+                    sample_cases.append({
+                        "name": in_f.stem,
+                        "input": in_content + "\n",
+                        "output": out_content + "\n" if out_content else "",
+                    })
 
-        return samples
+        # 2. If no files, fallback to regex parse markdown ```blocks
+        if not sample_cases:
+            matches = re.findall(r"```(?:example|input|output)?\s*\n([\s\S]*?)\n```", raw_md)
+            if len(matches) >= 2:
+                for i in range(0, len(matches) - 1, 2):
+                    sample_cases.append({
+                        "name": f"sample_{i // 2 + 1}",
+                        "input": matches[i].strip() + "\n",
+                        "output": matches[i + 1].strip() + "\n",
+                    })
+
+        return sample_cases
 
     def _generate_params_header(self, problem_dir: Path, params: dict[str, Any]) -> None:
-        """Write params.h header file containing problem parameter macro constants."""
+        """Write params.h if missing and required by generators or solutions."""
+        if not params:
+            return
         params_file = problem_dir / "params.h"
-        lines = ["#pragma once\n"]
-        for k, v in params.items():
-            if isinstance(v, (int, float)):
-                lines.append(f"#define {k} (long long){v}\n")
-            elif isinstance(v, str):
-                lines.append(f'#define {k} "{v}"\n')
         try:
+            lines = ["#pragma once\n"]
+            for k, v in params.items():
+                if isinstance(v, int):
+                    lines.append(f"const long long {k} = {v}LL;\n")
+                elif isinstance(v, float):
+                    lines.append(f"const double {k} = {v};\n")
+                elif isinstance(v, str):
+                    lines.append(f'const char* {k} = "{v}";\n')
             params_file.write_text("".join(lines), encoding="utf-8")
         except Exception:
             pass
 
     def _generate_testcases_from_info_toml(
-        self, problem_dir: Path, params: dict[str, Any]
+        self,
+        problem_dir: Path,
+        params: dict[str, Any],
+        max_tests: int = 10,
+        target_dir: Path | None = None,
+        force: bool = False,
     ) -> list[dict[str, str]]:
-        """Generate full test cases on the fly and delete compiled binaries/temporary files immediately to save disk space."""
+        """Compile generators and reference solutions to create full judge testcases on disk incrementally."""
         info_toml = problem_dir / "info.toml"
         if not info_toml.exists():
             return []
@@ -466,48 +520,22 @@ class YosupoSyncer:
         if not tests_config:
             return []
 
-        created_files: list[Path] = []
+        slug = problem_dir.name
+        out_dir = target_dir or (Path("data") / "testcases" / slug)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
         generated_tests: list[dict[str, str]] = []
+        created_files: list[Path] = []
+        sol_exe: Path | None = None
 
         try:
-            # 1. Write params.h if params exist
-            params_file = problem_dir / "params.h"
-            if params:
-                self._generate_params_header(problem_dir, params)
-                created_files.append(params_file)
-
-            # 2. Locate and compile reference solution
-            sol_dir = problem_dir / "sol"
-            if not sol_dir.exists():
-                return []
-
-            cpp_sols = list(sol_dir.glob("correct.cpp")) + list(sol_dir.glob("main.cpp"))
-            if not cpp_sols:
-                return []
-            sol_file = cpp_sols[0]
-            sol_exe = sol_file.with_suffix(".exe")
-
-            common_include = problem_dir.parent.parent / "common"
-            if not sol_exe.exists():
-                try:
-                    cmd = ["g++", "-O3", "-std=c++17"]
-                    if common_include.exists():
-                        cmd.extend(["-I", str(common_include)])
-                    cmd.extend(["-I", str(problem_dir), str(sol_file), "-o", str(sol_exe)])
-                    subprocess.run(cmd, capture_output=True, timeout=15)
-                    created_files.append(sol_exe)
-                except Exception:
-                    pass
-
-            if not sol_exe.exists():
-                return []
-
             gen_dir = problem_dir / "gen"
             if not gen_dir.exists():
                 return []
 
-            MAX_GENERATED_TESTS = 2
-            MAX_TEST_SIZE_BYTES = 12 * 1024 * 1024  # 12 MB max per test (prevents SQLite INT_MAX overflow while supporting Yosupo standard tests)
+            MAX_GENERATED_TESTS = max_tests
+            valid_cpp_tests = [t for t in tests_config if t.get("name", "").endswith(".cpp")]
+            per_generator_count = max(2, (max_tests + len(valid_cpp_tests) - 1) // max(1, len(valid_cpp_tests)))
 
             for test_entry in tests_config:
                 if len(generated_tests) >= MAX_GENERATED_TESTS:
@@ -521,64 +549,111 @@ class YosupoSyncer:
                 if not gen_file.exists():
                     continue
 
-                gen_exe = gen_file.with_suffix(".exe")
-                if not gen_exe.exists():
-                    try:
-                        cmd = ["g++", "-O3", "-std=c++17"]
-                        if common_include.exists():
-                            cmd.extend(["-I", str(common_include)])
-                        cmd.extend(
-                            [
-                                "-I",
-                                str(problem_dir),
-                                "-I",
-                                str(gen_dir),
-                                str(gen_file),
-                                "-o",
-                                str(gen_exe),
-                            ]
-                        )
-                        subprocess.run(cmd, capture_output=True, timeout=15)
-                        created_files.append(gen_exe)
-                    except Exception:
-                        pass
-
-                if not gen_exe.exists():
-                    continue
-
-                num_to_generate = min(int(test_entry.get("number", 1)), 2)
+                num_to_generate = min(int(test_entry.get("number", 1)), per_generator_count)
                 for seed in range(1, num_to_generate + 1):
                     if len(generated_tests) >= MAX_GENERATED_TESTS:
                         break
-                    try:
-                        # Run generator with seed
-                        gen_res = subprocess.run(
-                            [str(gen_exe), str(seed)], capture_output=True, timeout=10
-                        )
-                        if gen_res.returncode != 0 or not gen_res.stdout:
-                            continue
-                        input_data = gen_res.stdout
-                        if len(input_data) > MAX_TEST_SIZE_BYTES:
-                            continue
 
-                        # Run reference solution to get expected output
-                        sol_res = subprocess.run(
-                            [str(sol_exe)], input=input_data, capture_output=True, timeout=15
-                        )
-                        if sol_res.returncode != 0 or not sol_res.stdout or len(sol_res.stdout) > MAX_TEST_SIZE_BYTES:
-                            continue
+                    tc_stem = f"{gen_file.stem}_{seed:02d}"
+                    in_path = out_dir / f"{tc_stem}.in"
+                    out_path = out_dir / f"{tc_stem}.out"
 
-                        in_text = input_data.decode("utf-8", errors="ignore").strip()
-                        out_text = sol_res.stdout.decode("utf-8", errors="ignore").strip()
-                        if in_text and out_text:
-                            generated_tests.append(
-                                {
-                                    "name": f"{gen_file.stem}_{seed:02d}",
-                                    "input": in_text + "\n",
-                                    "output": out_text + "\n",
-                                }
+                    # Incremental check: if files already exist on disk and not force, skip generation!
+                    if in_path.exists() and out_path.exists() and in_path.stat().st_size > 0 and not force:
+                        generated_tests.append({
+                            "name": tc_stem,
+                            "in_path": str(in_path),
+                            "out_path": str(out_path),
+                        })
+                        continue
+
+                    # Needs generation: compile sol and gen lazily if not compiled yet
+                    if sol_exe is None or not sol_exe.exists():
+                        self._generate_params_header(problem_dir, params)
+                        params_h = problem_dir / "params.h"
+                        if params_h.exists():
+                            created_files.append(params_h)
+
+                        sol_dir = problem_dir / "sol"
+                        if not sol_dir.exists():
+                            return []
+                        cpp_sols = list(sol_dir.glob("correct.cpp")) or list(sol_dir.glob("*.cpp"))
+                        if not cpp_sols:
+                            return []
+                        sol_file = cpp_sols[0]
+                        sol_exe = sol_file.with_suffix(".exe")
+
+                        common_include = problem_dir.parent.parent / "common"
+                        if not sol_exe.exists():
+                            try:
+                                cmd = ["g++", "-O3", "-std=c++17"]
+                                if common_include.exists():
+                                    cmd.extend(["-I", str(common_include)])
+                                cmd.extend(["-I", str(problem_dir), str(sol_file), "-o", str(sol_exe)])
+                                subprocess.run(cmd, capture_output=True, timeout=15)
+                                created_files.append(sol_exe)
+                            except Exception:
+                                pass
+
+                    if not sol_exe or not sol_exe.exists():
+                        continue
+
+                    gen_exe = gen_file.with_suffix(".exe")
+                    if not gen_exe.exists():
+                        try:
+                            cmd = ["g++", "-O3", "-std=c++17"]
+                            common_include = problem_dir.parent.parent / "common"
+                            if common_include.exists():
+                                cmd.extend(["-I", str(common_include)])
+                            cmd.extend(
+                                [
+                                    "-I",
+                                    str(problem_dir),
+                                    "-I",
+                                    str(gen_dir),
+                                    str(gen_file),
+                                    "-o",
+                                    str(gen_exe),
+                                ]
                             )
+                            subprocess.run(cmd, capture_output=True, timeout=15)
+                            created_files.append(gen_exe)
+                        except Exception:
+                            pass
+
+                    if not gen_exe.exists():
+                        continue
+
+                    try:
+                        # Run generator directly writing to in_path file on disk
+                        with open(in_path, "wb") as f_in:
+                            gen_res = subprocess.run(
+                                [str(gen_exe), str(seed)], stdout=f_in, capture_output=False, timeout=10
+                            )
+                        if gen_res.returncode != 0 or not in_path.exists() or in_path.stat().st_size == 0:
+                            in_path.unlink(missing_ok=True)
+                            continue
+
+                        # Run reference solution directly streaming stdin from in_path and writing to out_path
+                        with open(in_path, "rb") as f_in, open(out_path, "wb") as f_out:
+                            sol_res = subprocess.run(
+                                [str(sol_exe)], stdin=f_in, stdout=f_out, capture_output=False, timeout=15
+                            )
+                        if sol_res.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
+                            in_path.unlink(missing_ok=True)
+                            out_path.unlink(missing_ok=True)
+                            continue
+
+                        generated_tests.append(
+                            {
+                                "name": tc_stem,
+                                "in_path": str(in_path),
+                                "out_path": str(out_path),
+                            }
+                        )
                     except Exception:
+                        in_path.unlink(missing_ok=True)
+                        out_path.unlink(missing_ok=True)
                         continue
         finally:
             # Clean up all compiled executables and temporary params headers to save disk space

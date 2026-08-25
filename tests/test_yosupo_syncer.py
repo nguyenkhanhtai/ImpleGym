@@ -117,7 +117,7 @@ async def test_parse_problem_directory_generate_tests_flag(db_session: AsyncSess
         # 2. When generate_tests=True
         res_gen = syncer.parse_problem_directory("sample", dummy_dir, generate_tests=True)
         if res_gen:
-            assert len(res_gen["sample_cases"]) == 2
+            assert res_gen["testcases_dir"] is not None
             syncer._generate_testcases_from_info_toml.assert_called_once()
 
 

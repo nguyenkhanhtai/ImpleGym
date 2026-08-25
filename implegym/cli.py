@@ -77,6 +77,9 @@ def sync_yosupo(
     force: bool = typer.Option(
         False, "--force", "-f", help="Force re-generation and compilation of test cases for all problems"
     ),
+    max_tests: int = typer.Option(
+        10, "--max-tests", "-n", help="Maximum generated test cases per problem (default: 10)"
+    ),
 ) -> None:
     """Clone or pull official yosupo06/library-checker-problems and sync all problems to PostgreSQL."""
     from typing import Any
@@ -127,7 +130,9 @@ def sync_yosupo(
                         progress.update(task_id, description="[bold green]Sync completed![/]", total=total or current or 100, completed=total or current or 100)
 
                 count = await syncer.sync_all_problems(
-                    progress_callback=_on_progress, force_regenerate_tests=force
+                    progress_callback=_on_progress,
+                    force_regenerate_tests=force,
+                    max_tests=max_tests,
                 )
 
             console.print(

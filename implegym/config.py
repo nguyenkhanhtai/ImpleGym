@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent / "sandbox",
         description="Sandbox directory for compilation and running code",
     )
+    max_tests_per_problem: int = Field(
+        default=10,
+        description="Maximum number of testcases to generate per problem (default: 10)",
+    )
 
 
 settings = Settings()

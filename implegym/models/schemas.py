@@ -24,6 +24,7 @@ class ProblemBaseSchema(BaseModel):
     output_format: str = ""
     constraints: str = ""
     sample_cases: list[SampleCaseSchema] = Field(default_factory=list)
+    testcases_dir: str | None = None
     time_limit: float = 2.0
     memory_limit_mb: int = 1024
     tags: list[str] = Field(default_factory=list)

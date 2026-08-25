@@ -76,16 +76,19 @@ int main() {
 
     sub_res, _ = await tracker.submit_code(sub_req)
 
-    # 3. Verify evaluation ran against generated testcases and got AC
+    # 3. Verify evaluation ran against on-disk generated testcases and got AC
     assert sub_res.verdict == "AC"
     assert len(sub_res.test_results) > 1
 
-    # 4. Verify testcases are now cached in DB
+    # 4. Verify testcases directory is created and populated on disk
     await db_session.refresh(problem)
-    assert len(problem.sample_cases) > 1
-    assert any(tc.get("name", "").startswith("random") for tc in problem.sample_cases)
+    assert problem.testcases_dir is not None
+    tc_dir = Path(problem.testcases_dir)
+    assert tc_dir.exists()
+    disk_in_files = list(tc_dir.glob("*.in"))
+    assert len(disk_in_files) > 1
 
-    # 5. Subsequent submission reuses cached testcases without regenerating
+    # 5. Subsequent submission reuses on-disk cached testcases without regenerating
     sub_res2, _ = await tracker.submit_code(sub_req)
     assert sub_res2.verdict == "AC"
-    assert len(sub_res2.test_results) == len(problem.sample_cases)
+    assert len(sub_res2.test_results) == len(disk_in_files)

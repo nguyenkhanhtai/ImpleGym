@@ -120,15 +120,88 @@ class JudgeRunner:
                 message=f"Execution error: {str(ex)[:100]}",
             )
 
+    def run_test_file(
+        self,
+        executable_path: Path,
+        language: str,
+        in_file_path: Path,
+        out_file_path: Path,
+        time_limit_sec: float,
+        test_name: str = "test",
+    ) -> TestCaseResultSchema:
+        """Run a single test case streaming input directly from in_file_path and verifying against out_file_path."""
+        cmd = [str(executable_path)]
+        if language == "python":
+            cmd = ["python", str(executable_path)]
+
+        start_time = time.perf_counter()
+        try:
+            with open(in_file_path, "rb") as f_in:
+                proc = subprocess.run(
+                    cmd,
+                    stdin=f_in,
+                    capture_output=True,
+                    timeout=time_limit_sec,
+                    check=False,
+                )
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            stdout_str = proc.stdout.decode("utf-8", errors="ignore")
+            stderr_str = proc.stderr.decode("utf-8", errors="ignore")
+
+            if proc.returncode != 0:
+                err_msg = stderr_str.strip() if stderr_str else f"Exit code {proc.returncode}"
+                return TestCaseResultSchema(
+                    name=test_name,
+                    verdict="RE",
+                    time_ms=round(elapsed_ms, 2),
+                    memory_kb=1024,
+                    message=err_msg[:200],
+                )
+
+            expected_output = (
+                out_file_path.read_text(encoding="utf-8", errors="ignore")
+                if out_file_path.exists()
+                else ""
+            )
+            is_correct = self.comparator.is_matching(stdout_str, expected_output)
+            verdict = "AC" if is_correct else "WA"
+            msg = None if is_correct else "Output mismatch"
+
+            return TestCaseResultSchema(
+                name=test_name,
+                verdict=verdict,
+                time_ms=round(elapsed_ms, 2),
+                memory_kb=2048,
+                message=msg,
+            )
+
+        except subprocess.TimeoutExpired:
+            return TestCaseResultSchema(
+                name=test_name,
+                verdict="TLE",
+                time_ms=round(time_limit_sec * 1000.0, 2),
+                memory_kb=2048,
+                message=f"Time Limit Exceeded (>{time_limit_sec}s)",
+            )
+        except Exception as ex:
+            return TestCaseResultSchema(
+                name=test_name,
+                verdict="RE",
+                time_ms=0.0,
+                memory_kb=0,
+                message=f"Execution error: {str(ex)[:100]}",
+            )
+
     def evaluate(
         self,
         code: str,
-        sample_cases: list[dict[str, str]],
+        sample_cases: list[dict[str, str]] | None = None,
+        testcases_dir: Path | str | None = None,
         time_limit_sec: float = 2.0,
         compiler_profile: str = "g++ (C++20)",
         compiler_flags: str | None = None,
     ) -> JudgeRunResult:
-        """Compile and evaluate code against all sample cases."""
+        """Compile and evaluate code against test files in testcases_dir or sample_cases."""
         comp_res: CompilationResult = self.compiler_manager.compile(
             code=code,
             compiler_profile=compiler_profile,
@@ -150,25 +223,51 @@ class JudgeRunner:
         final_verdict = "AC"
 
         try:
-            for idx, tc in enumerate(sample_cases):
-                tc_name = tc.get("name") or f"sample_{idx + 1}"
-                tc_input = tc.get("input", "")
-                tc_expected = tc.get("output", "")
+            # Check if testcases_dir exists and has *.in files
+            tc_dir_path = Path(testcases_dir) if testcases_dir else None
+            in_files = (
+                sorted(list(tc_dir_path.glob("*.in")))
+                if tc_dir_path and tc_dir_path.exists()
+                else []
+            )
 
-                result = self.run_test_case(
-                    executable_path=comp_res.executable_path,  # type: ignore
-                    language=lang,
-                    test_input=tc_input,
-                    expected_output=tc_expected,
-                    time_limit_sec=time_limit_sec,
-                    test_name=tc_name,
-                )
-                test_results.append(result)
-                max_time_ms = max(max_time_ms, result.time_ms)
+            if in_files:
+                for in_f in in_files:
+                    out_f = in_f.with_suffix(".out")
+                    result = self.run_test_file(
+                        executable_path=comp_res.executable_path,  # type: ignore
+                        language=lang,
+                        in_file_path=in_f,
+                        out_file_path=out_f,
+                        time_limit_sec=time_limit_sec,
+                        test_name=in_f.stem,
+                    )
+                    test_results.append(result)
+                    max_time_ms = max(max_time_ms, result.time_ms)
 
-                if result.verdict != "AC":
-                    final_verdict = result.verdict
-                    break
+                    if result.verdict != "AC":
+                        final_verdict = result.verdict
+                        break
+            elif sample_cases:
+                for idx, tc in enumerate(sample_cases):
+                    tc_name = tc.get("name") or f"sample_{idx + 1}"
+                    tc_input = tc.get("input", "")
+                    tc_expected = tc.get("output", "")
+
+                    result = self.run_test_case(
+                        executable_path=comp_res.executable_path,  # type: ignore
+                        language=lang,
+                        test_input=tc_input,
+                        expected_output=tc_expected,
+                        time_limit_sec=time_limit_sec,
+                        test_name=tc_name,
+                    )
+                    test_results.append(result)
+                    max_time_ms = max(max_time_ms, result.time_ms)
+
+                    if result.verdict != "AC":
+                        final_verdict = result.verdict
+                        break
         finally:
             # Clean up user solution binary to save disk space
             if comp_res.executable_path and comp_res.executable_path.exists():

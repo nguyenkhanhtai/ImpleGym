@@ -21,19 +21,27 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema with contest session fields."""
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    existing_cols = {c["name"] for c in insp.get_columns("practice_sessions")}
+
     with op.batch_alter_table("practice_sessions", schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column("name", sa.String(length=256), nullable=False, server_default="")
-        )
-        batch_op.add_column(
-            sa.Column("problem_ids", sa.JSON(), nullable=False, server_default="[]")
-        )
-        batch_op.add_column(
-            sa.Column("current_problem_index", sa.Integer(), nullable=False, server_default="0")
-        )
-        batch_op.add_column(
-            sa.Column("problem_statuses", sa.JSON(), nullable=False, server_default="{}")
-        )
+        if "name" not in existing_cols:
+            batch_op.add_column(
+                sa.Column("name", sa.String(length=256), nullable=False, server_default="")
+            )
+        if "problem_ids" not in existing_cols:
+            batch_op.add_column(
+                sa.Column("problem_ids", sa.JSON(), nullable=False, server_default="[]")
+            )
+        if "current_problem_index" not in existing_cols:
+            batch_op.add_column(
+                sa.Column("current_problem_index", sa.Integer(), nullable=False, server_default="0")
+            )
+        if "problem_statuses" not in existing_cols:
+            batch_op.add_column(
+                sa.Column("problem_statuses", sa.JSON(), nullable=False, server_default="{}")
+            )
 
 
 def downgrade() -> None:

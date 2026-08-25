@@ -156,14 +156,14 @@ async def list_problems(
     return create_cached_response(request, data)
 
 
-async def _run_background_sync(force: bool = False) -> None:
+async def _run_background_sync(force: bool = False, max_tests: int = 10) -> None:
     """Execute problem synchronization in background using an isolated session scope."""
     try:
         async with session_scope() as session:
             from implegym.problems.yosupo_syncer import YosupoSyncer
 
             syncer = YosupoSyncer(session)
-            await syncer.sync_all_problems(force_regenerate_tests=force)
+            await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
     except Exception as ex:
         from implegym.problems.sync_manager import sync_progress_tracker
 
@@ -174,6 +174,7 @@ async def _run_background_sync(force: bool = False) -> None:
 async def sync_yosupo_problems(
     background: bool = Query(True, description="Run synchronization in background"),
     force: bool = Query(False, description="Force re-generation of all test cases"),
+    max_tests: int = Query(default=10, ge=1, le=50, description="Max generated tests per problem"),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Trigger synchronization from official yosupo06/library-checker-problems repository."""
@@ -189,7 +190,7 @@ async def sync_yosupo_problems(
         }
 
     if background:
-        asyncio.create_task(_run_background_sync(force=force))
+        asyncio.create_task(_run_background_sync(force=force, max_tests=max_tests))
         return {
             "status": "started",
             "message": "Problem synchronization started in background",
@@ -197,7 +198,7 @@ async def sync_yosupo_problems(
         }
 
     syncer = YosupoSyncer(db)
-    count = await syncer.sync_all_problems(force_regenerate_tests=force)
+    count = await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
     return {"status": "ok", "synced_count": count}
 
 
@@ -240,13 +241,14 @@ async def cancel_sync() -> dict[str, Any]:
 @app.post("/api/problems/{slug}/generate-tests")
 async def sync_single_yosupo_problem(
     slug: str,
+    max_tests: int = Query(default=10, ge=1, le=50, description="Max generated tests"),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Trigger testcase generation and synchronization for a single problem by slug."""
     from implegym.problems.yosupo_syncer import YosupoSyncer
 
     syncer = YosupoSyncer(db)
-    prob_data = await syncer.sync_problem(slug)
+    prob_data = await syncer.sync_problem(slug, max_tests=max_tests)
     if not prob_data:
         raise HTTPException(status_code=404, detail="Problem not found in repository")
     return {

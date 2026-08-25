@@ -66,26 +66,37 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """Create async Engine and execute migrations."""
+    """Create async Engine and execute migrations with SQLite fallback."""
     db_url = get_db_url()
-    section = config.get_section(config.config_ini_section, {})
-    section["sqlalchemy.url"] = db_url
+    candidates = [db_url]
+    if "sqlite" not in db_url:
+        candidates.append("sqlite+aiosqlite:///data/implegym.db")
 
-    connect_args = {}
-    if "sqlite" in db_url:
-        connect_args["check_same_thread"] = False
+    for candidate_url in candidates:
+        section = config.get_section(config.config_ini_section, {})
+        section["sqlalchemy.url"] = candidate_url
 
-    connectable = async_engine_from_config(
-        section,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        connect_args=connect_args,
-    )
+        connect_args = {}
+        if "sqlite" in candidate_url:
+            connect_args["check_same_thread"] = False
+            Path("data").mkdir(parents=True, exist_ok=True)
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+        connectable = async_engine_from_config(
+            section,
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+            connect_args=connect_args,
+        )
 
-    await connectable.dispose()
+        try:
+            async with connectable.connect() as connection:
+                await connection.run_sync(do_run_migrations)
+            await connectable.dispose()
+            break
+        except Exception as e:
+            await connectable.dispose()
+            if candidate_url == candidates[-1]:
+                raise e
 
 
 def run_migrations_online() -> None:

@@ -96,10 +96,15 @@ def _auto_migrate_tables(sync_conn: Any) -> None:
         # Check problems table info
         prob_result = sync_conn.exec_driver_sql("PRAGMA table_info(problems)").fetchall()
         existing_prob_cols = {row[1] for row in prob_result}
-        if existing_prob_cols and "is_difficulty_customized" not in existing_prob_cols:
-            sync_conn.exec_driver_sql(
-                "ALTER TABLE problems ADD COLUMN is_difficulty_customized BOOLEAN DEFAULT 0 NOT NULL"
-            )
+        if existing_prob_cols:
+            if "is_difficulty_customized" not in existing_prob_cols:
+                sync_conn.exec_driver_sql(
+                    "ALTER TABLE problems ADD COLUMN is_difficulty_customized BOOLEAN DEFAULT 0 NOT NULL"
+                )
+            if "testcases_dir" not in existing_prob_cols:
+                sync_conn.exec_driver_sql(
+                    "ALTER TABLE problems ADD COLUMN testcases_dir VARCHAR(512)"
+                )
     elif dialect_name == "postgresql":
         try:
             sync_conn.exec_driver_sql(
@@ -116,6 +121,9 @@ def _auto_migrate_tables(sync_conn: Any) -> None:
             )
             sync_conn.exec_driver_sql(
                 "ALTER TABLE problems ADD COLUMN IF NOT EXISTS is_difficulty_customized BOOLEAN DEFAULT FALSE NOT NULL"
+            )
+            sync_conn.exec_driver_sql(
+                "ALTER TABLE problems ADD COLUMN IF NOT EXISTS testcases_dir VARCHAR(512)"
             )
         except Exception:
             pass

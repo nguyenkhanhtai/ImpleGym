@@ -1,6 +1,7 @@
 """Practice session and stopwatch lifecycle management."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -255,27 +256,35 @@ class SessionTracker:
                 if problem.id in p_ids or cand.problem_id == problem.id:
                     practice_session = cand
 
-        # Ensure testcases are generated from info.toml and cached in the database
-        has_generated = any(
-            tc.get("name", "").startswith(("random", "max_random", "gen", "small", "edge", "test"))
-            for tc in (problem.sample_cases or [])
+        # Ensure testcases are generated and present in on-disk testcases_dir
+        tc_dir = Path(problem.testcases_dir) if problem.testcases_dir else (Path("data") / "testcases" / problem.slug)
+        has_disk_tests = tc_dir.exists() and any(
+            not f.name.startswith("00_sample") for f in tc_dir.glob("*.in")
         )
-        if not has_generated:
+
+        if not has_disk_tests:
             try:
                 from implegym.problems.yosupo_syncer import YosupoSyncer
 
                 syncer = YosupoSyncer(self.session)
                 synced_data = await syncer.sync_problem(problem.slug)
-                if synced_data and synced_data.get("sample_cases"):
-                    problem.sample_cases = synced_data["sample_cases"]
+                if synced_data:
+                    if synced_data.get("testcases_dir"):
+                        problem.testcases_dir = synced_data["testcases_dir"]
+                    if synced_data.get("sample_cases"):
+                        problem.sample_cases = synced_data["sample_cases"]
                     await self.session.commit()
             except Exception:
                 pass
+        elif not problem.testcases_dir:
+            problem.testcases_dir = str(tc_dir).replace("\\", "/")
+            await self.session.commit()
 
-        # Run Judge Evaluation against full cached testcases
+        # Run Judge Evaluation against on-disk testcases (streaming) or fallback sample_cases
         run_res: JudgeRunResult = self.judge.evaluate(
             code=req.code,
             sample_cases=problem.sample_cases or [],
+            testcases_dir=problem.testcases_dir or f"data/testcases/{problem.slug}",
             time_limit_sec=problem.time_limit,
             compiler_profile=req.compiler_profile,
             compiler_flags=req.compiler_flags,

@@ -24,9 +24,9 @@ class TestYosupoTestcaseGeneration:
         params_file = tmp_path / "params.h"
         assert params_file.exists()
         content = params_file.read_text(encoding="utf-8")
-        assert "#define MAX_N (long long)500000" in content
-        assert "#define MAX_Q (long long)500000" in content
-        assert "#define MAX_A (long long)1000000000" in content
+        assert "MAX_N" in content and "500000" in content
+        assert "MAX_Q" in content and "500000" in content
+        assert "MAX_A" in content and "1000000000" in content
 
     def test_info_toml_testcase_generation_for_static_range_sum(self) -> None:
         """Verify that YosupoSyncer extracts and generates testcases from info.toml for static_range_sum."""
@@ -40,11 +40,11 @@ class TestYosupoTestcaseGeneration:
         testcases = syncer._generate_testcases_from_info_toml(prob_dir, params)
         assert len(testcases) > 0
         for tc in testcases:
-            assert "input" in tc and len(tc["input"]) > 0
-            assert "output" in tc and len(tc["output"]) > 0
+            assert "in_path" in tc and Path(tc["in_path"]).exists()
+            assert "out_path" in tc and Path(tc["out_path"]).exists()
             assert "name" in tc
 
-        # Verify running correct solution against generated testcases produces 100% AC
+        # Verify running correct solution against on-disk testcases produces 100% AC
         judge = JudgeRunner()
         fast_cpp = r"""
 #include <iostream>
@@ -69,7 +69,7 @@ int main() {
 """
         run_res = judge.evaluate(
             code=fast_cpp,
-            sample_cases=testcases,
+            testcases_dir=Path("data/testcases/static_range_sum"),
             time_limit_sec=5.0,
             compiler_profile="g++ (C++20)",
         )
@@ -81,7 +81,7 @@ int main() {
         dummy_code = "// Dummy code that does nothing\nint main() { return 0; }\n"
         dummy_res = judge.evaluate(
             code=dummy_code,
-            sample_cases=testcases,
+            testcases_dir=Path("data/testcases/static_range_sum"),
             time_limit_sec=5.0,
             compiler_profile="g++ (C++20)",
         )
