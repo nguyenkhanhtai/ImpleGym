@@ -456,6 +456,148 @@ function initCommonModals() {
   }
 }
 
+let syncPollInterval = null;
+let syncEventSource = null;
+
+function renderSyncState(state, onComplete) {
+  const modal = document.getElementById("sync-progress-modal");
+  if (!modal) return;
+
+  const stageBadge = document.getElementById("sync-stage-badge");
+  const timerBadge = document.getElementById("sync-timer-badge");
+  const slugSpan = document.getElementById("sync-current-slug");
+  const catSpan = document.getElementById("sync-current-category");
+  const countSpan = document.getElementById("sync-counter-text");
+  const syncedSpan = document.getElementById("sync-synced-count");
+  const fill = document.getElementById("sync-progress-fill");
+  const msg = document.getElementById("sync-status-message");
+  const pct = document.getElementById("sync-progress-pct");
+  const icon = document.getElementById("sync-icon");
+  const cancelBtn = document.getElementById("btn-cancel-sync");
+  const doneBtn = document.getElementById("btn-done-sync");
+
+  if (!state) return;
+
+  const stage = state.stage || "idle";
+  const isRunning = state.is_running || false;
+  const percent = typeof state.percent === "number" ? state.percent : 0;
+
+  if (fill) fill.style.width = `${percent}%`;
+  if (pct) pct.textContent = `${percent.toFixed(1)}%`;
+  if (msg) msg.textContent = state.message || "Working...";
+  if (timerBadge) timerBadge.textContent = `⏱️ ${(state.duration_seconds || 0).toFixed(1)}s`;
+  if (slugSpan) slugSpan.textContent = state.current_slug || (isRunning ? "Scanning..." : "-");
+  if (catSpan) catSpan.textContent = state.current_category || (isRunning ? "General" : "-");
+  if (countSpan) countSpan.textContent = `${state.current || 0} / ${state.total || 0}`;
+  if (syncedSpan) syncedSpan.textContent = state.synced_count || 0;
+
+  if (icon) {
+    if (isRunning) icon.classList.add("active");
+    else icon.classList.remove("active");
+  }
+
+  if (stageBadge) {
+    stageBadge.className = "sync-badge";
+    if (stage === "git_clone_pull") {
+      stageBadge.classList.add("badge-running");
+      stageBadge.textContent = "📦 Git Update";
+    } else if (stage === "scanning") {
+      stageBadge.classList.add("badge-running");
+      stageBadge.textContent = "🔍 Scanning Files";
+    } else if (stage === "syncing_problems") {
+      stageBadge.classList.add("badge-running");
+      stageBadge.textContent = "⚡ Syncing Problems";
+    } else if (stage === "completed") {
+      stageBadge.classList.add("badge-completed");
+      stageBadge.textContent = "✅ Completed";
+    } else if (stage === "error") {
+      stageBadge.classList.add("badge-error");
+      stageBadge.textContent = "❌ Failed";
+    } else if (stage === "cancelled") {
+      stageBadge.classList.add("badge-cancelled");
+      stageBadge.textContent = "⏹️ Cancelled";
+    } else {
+      stageBadge.classList.add("badge-idle");
+      stageBadge.textContent = "Idle";
+    }
+  }
+
+  if (isRunning) {
+    if (cancelBtn) cancelBtn.style.display = "inline-block";
+    if (doneBtn) doneBtn.style.display = "none";
+  } else {
+    if (cancelBtn) cancelBtn.style.display = "none";
+    if (doneBtn) doneBtn.style.display = "inline-block";
+    if (syncPollInterval) {
+      clearInterval(syncPollInterval);
+      syncPollInterval = null;
+    }
+    if (stage === "completed" && typeof onComplete === "function") {
+      onComplete(state);
+    }
+  }
+}
+
+async function openSyncProgressModal(onComplete) {
+  const modal = document.getElementById("sync-progress-modal");
+  if (!modal) return;
+  modal.style.display = "flex";
+
+  const cancelBtn = document.getElementById("btn-cancel-sync");
+  const doneBtn = document.getElementById("btn-done-sync");
+  const closeBtn = document.getElementById("btn-close-sync-modal");
+
+  const cleanup = () => {
+    if (syncPollInterval) {
+      clearInterval(syncPollInterval);
+      syncPollInterval = null;
+    }
+    modal.style.display = "none";
+  };
+
+  if (closeBtn) closeBtn.onclick = cleanup;
+  if (doneBtn) doneBtn.onclick = cleanup;
+  if (cancelBtn) {
+    cancelBtn.onclick = async () => {
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = "Cancelling...";
+      try {
+        await fetch("/api/problems/sync/cancel", { method: "POST" });
+      } catch (err) {
+        console.error("Cancel failed:", err);
+      } finally {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = "⏹️ Cancel Sync";
+      }
+    };
+  }
+
+  // Trigger sync API in background
+  try {
+    const res = await fetch("/api/problems/sync?background=true", { method: "POST" });
+    const data = await res.json();
+    if (data.progress) {
+      renderSyncState(data.progress, onComplete);
+    }
+  } catch (err) {
+    console.error("Failed to start sync:", err);
+  }
+
+  // Start polling status
+  if (syncPollInterval) clearInterval(syncPollInterval);
+  syncPollInterval = setInterval(async () => {
+    try {
+      const res = await fetch("/api/problems/sync/status");
+      if (res.ok) {
+        const state = await res.json();
+        renderSyncState(state, onComplete);
+      }
+    } catch (err) {
+      console.warn("Poll status failed:", err);
+    }
+  }, 600);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initCommonModals();
 });

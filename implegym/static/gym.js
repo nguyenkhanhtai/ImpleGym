@@ -682,13 +682,21 @@ function initGymListeners() {
   }
 }
 
+// Resume Stopwatch after judging, adjusting start time so judging latency is not penalized
+function resumeStopwatchAfterJudging(judgingDurSec = 0) {
+  if (!activeSession || activeSession.status === "ac" || activeSession.status === "stopped") return;
+  if (judgingDurSec > 0 && activeSession.started_at) {
+    const currentStartMs = parseUtcDate(activeSession.started_at);
+    const adjustedStartMs = currentStartMs + (judgingDurSec * 1000);
+    activeSession.started_at = new Date(adjustedStartMs).toISOString();
+  }
+  startStopwatch(activeSession.started_at, null, "in_progress");
+}
+
 // Handle Solution Submission
 async function submitSolution() {
   if (!activeSession) {
-    // If user submits while in preview mode, auto-start practice session first
     if (currentProblem) {
-      const shouldStart = confirm("Start practice stopwatch now and submit your solution?");
-      if (!shouldStart) return;
       await startPractice();
       if (!activeSession) return;
     } else {
@@ -701,6 +709,7 @@ async function submitSolution() {
   const compiler = document.getElementById("compiler-select").value;
   const flags = document.getElementById("compiler-flags").value;
   const btn = document.getElementById("btn-submit");
+  const statusElem = document.getElementById("session-status-text");
 
   if (!code.trim()) {
     alert("Please write some code before submitting!");
@@ -709,6 +718,17 @@ async function submitSolution() {
 
   btn.disabled = true;
   btn.textContent = "⏳ Running Tests...";
+
+  // Pause the UI stopwatch while judging is in progress
+  const judgingStartMs = Date.now();
+  if (statusElem) {
+    statusElem.textContent = "⚖️ JUDGING IN PROGRESS (TIMER PAUSED)...";
+    statusElem.style.color = "var(--accent-warning)";
+  }
+  if (stopwatchInterval) {
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+  }
 
   try {
     const res = await fetch("/api/session/submit", {
@@ -732,20 +752,27 @@ async function submitSolution() {
     }
 
     if (data.session && data.session.status === "ac") {
-      // Entire contest completed
+      // Entire contest or session completed with AC -> Stop timer permanently
       const startTime = activeSession.started_at;
       const endTime = activeSession.finished_at || new Date().toISOString();
       const totalDur = activeSession.total_duration_seconds;
       startStopwatch(startTime, endTime, "ac", totalDur);
-    } else if (data.submission.verdict === "AC") {
+    } else if (data.submission && data.submission.verdict === "AC") {
       // Individual problem solved in contest session
       const progressBadge = document.getElementById("contest-progress-badge");
       if (progressBadge && activeSession) {
         progressBadge.textContent = `${activeSession.solved_count || 0} / ${activeSession.num_problems || 1} Solved`;
       }
+      const judgingDurSec = (Date.now() - judgingStartMs) / 1000;
+      resumeStopwatchAfterJudging(judgingDurSec);
+    } else {
+      // Not AC (WA / TLE / RE) -> Resume timer without penalizing for judging time
+      const judgingDurSec = (Date.now() - judgingStartMs) / 1000;
+      resumeStopwatchAfterJudging(judgingDurSec);
     }
   } catch (err) {
     alert("Submission error: " + err.message);
+    resumeStopwatchAfterJudging(0);
   } finally {
     btn.disabled = false;
     btn.textContent = "🚀 Submit Solution";

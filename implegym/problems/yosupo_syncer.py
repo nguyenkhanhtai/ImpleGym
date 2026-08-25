@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -105,7 +106,7 @@ class YosupoSyncer:
             return res.returncode == 0
 
     def parse_problem_directory(
-        self, category_name: str, problem_dir: Path
+        self, category_name: str, problem_dir: Path, generate_tests: bool = True
     ) -> dict[str, Any] | None:
         """Parse a single Yosupo problem directory containing info.toml, task.md, and sample cases."""
         info_toml = problem_dir / "info.toml"
@@ -135,10 +136,13 @@ class YosupoSyncer:
             raw_markdown, params
         )
 
-        # 3. Extract sample cases and generated testcases from info.toml
+        # 3. Extract sample cases and conditionally generate testcases from info.toml
         sample_cases = self._extract_sample_cases(problem_dir, raw_markdown)[:2]
-        generated_tests = self._generate_testcases_from_info_toml(problem_dir, params)
-        all_testcases = sample_cases + generated_tests
+        if generate_tests:
+            generated_tests = self._generate_testcases_from_info_toml(problem_dir, params)
+            all_testcases = sample_cases + generated_tests
+        else:
+            all_testcases = sample_cases
 
         # 4. Compute Difficulty (1..10)
         difficulty = self._calculate_difficulty(slug, category_name, problem_dir)
@@ -161,29 +165,111 @@ class YosupoSyncer:
             "source": "yosupo_official",
         }
 
-    async def sync_all_problems(self) -> int:
-        """Scan full repository and synchronize all problems into the database."""
-        if not self.repo_dir.exists():
+    async def sync_all_problems(
+        self,
+        progress_callback: Any | None = None,
+        tracker: Any | None = None,
+        force_regenerate_tests: bool = False,
+    ) -> int:
+        """Scan full repository and synchronize all problems into the database with progress tracking and test caching."""
+        from implegym.problems.sync_manager import sync_progress_tracker
+
+        active_tracker = tracker or sync_progress_tracker
+
+        active_tracker.start(total=0, message="Updating official Yosupo repository...")
+        if progress_callback:
+            try:
+                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
+                if asyncio.iscoroutine(res):
+                    await res
+            except Exception:
+                pass
+
+        if not self.repo_dir.exists() or not (self.repo_dir / ".git").exists():
+            self.clone_or_pull_repo()
+        else:
             self.clone_or_pull_repo()
 
         if not self.repo_dir.exists():
+            active_tracker.fail("Failed to clone or locate Yosupo repository.")
             return 0
 
-        synced_count = 0
-        # Walk recursively to find all directories with info.toml and task.md
+        # Phase 1: Pre-scan and discover all candidate directories
+        active_tracker.update(
+            stage="scanning", message="Scanning repository for problem definitions..."
+        )
+        if progress_callback:
+            try:
+                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
+                if asyncio.iscoroutine(res):
+                    await res
+            except Exception:
+                pass
+
+        problem_candidates: list[tuple[str, Path]] = []
         for root, _dirs, files in os.walk(self.repo_dir):
             if "info.toml" in files and "task.md" in files:
                 prob_path = Path(root)
                 rel_parts = prob_path.relative_to(self.repo_dir).parts
                 category = rel_parts[0] if len(rel_parts) > 1 else "general"
+                problem_candidates.append((category, prob_path))
 
-                prob_data = self.parse_problem_directory(category, prob_path)
+        total_count = len(problem_candidates)
+        active_tracker.update(
+            stage="syncing_problems",
+            total=total_count,
+            current=0,
+            synced_count=0,
+            message=f"Found {total_count} problems. Syncing definitions...",
+        )
+        if progress_callback:
+            try:
+                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
+                if asyncio.iscoroutine(res):
+                    await res
+            except Exception:
+                pass
+
+        synced_count = 0
+        for idx, (category, prob_path) in enumerate(problem_candidates):
+            if active_tracker.is_cancelled():
+                logger.warning("Problem synchronization cancelled by user.")
+                active_tracker.update(stage="cancelled", message="Synchronization cancelled by user.")
+                break
+
+            slug = prob_path.name
+            active_tracker.update(
+                current=idx + 1,
+                current_slug=slug,
+                current_category=category,
+                message=f"Processing {slug} ({idx + 1}/{total_count})...",
+            )
+            if progress_callback:
+                try:
+                    res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
+                    if asyncio.iscoroutine(res):
+                        await res
+                except Exception:
+                    pass
+
+            try:
+                # Check if problem already exists and has cached test cases
+                stmt = select(Problem).where(Problem.slug == slug)
+                res_stmt = await self.session.execute(stmt)
+                existing = res_stmt.scalar_one_or_none()
+
+                needs_test_generation = (
+                    force_regenerate_tests
+                    or existing is None
+                    or not existing.sample_cases
+                    or len(existing.sample_cases) == 0
+                )
+
+                prob_data = self.parse_problem_directory(
+                    category, prob_path, generate_tests=needs_test_generation
+                )
                 if not prob_data:
                     continue
-
-                stmt = select(Problem).where(Problem.slug == prob_data["slug"])
-                res = await self.session.execute(stmt)
-                existing = res.scalar_one_or_none()
 
                 if existing:
                     existing.title = prob_data["title"]
@@ -195,7 +281,7 @@ class YosupoSyncer:
                     existing.input_format = prob_data["input_format"]
                     existing.output_format = prob_data["output_format"]
                     existing.constraints = prob_data["constraints"]
-                    if prob_data["sample_cases"]:
+                    if needs_test_generation and prob_data["sample_cases"]:
                         existing.sample_cases = prob_data["sample_cases"]
                     existing.time_limit = prob_data["time_limit"]
                 else:
@@ -203,8 +289,24 @@ class YosupoSyncer:
                     self.session.add(new_problem)
 
                 synced_count += 1
+                # Commit incrementally so problems are visible and persisted immediately
+                await self.session.commit()
+                active_tracker.update(synced_count=synced_count)
+            except Exception as e:
+                logger.error(f"Error parsing problem {slug}: {e}")
 
-        await self.session.commit()
+        if not active_tracker.is_cancelled():
+            active_tracker.complete(
+                synced_count=synced_count,
+                message=f"Successfully synchronized {synced_count} problems from official Yosupo repository!",
+            )
+        if progress_callback:
+            try:
+                res = progress_callback(active_tracker.get_state().model_dump(mode="json"))
+                if asyncio.iscoroutine(res):
+                    await res
+            except Exception:
+                pass
         return synced_count
 
     async def sync_problem(self, slug: str) -> dict[str, Any] | None:
@@ -404,7 +506,13 @@ class YosupoSyncer:
             if not gen_dir.exists():
                 return []
 
+            MAX_GENERATED_TESTS = 2
+            MAX_TEST_SIZE_BYTES = 12 * 1024 * 1024  # 12 MB max per test (prevents SQLite INT_MAX overflow while supporting Yosupo standard tests)
+
             for test_entry in tests_config:
+                if len(generated_tests) >= MAX_GENERATED_TESTS:
+                    break
+
                 test_name = test_entry.get("name", "")
                 if not test_name.endswith(".cpp"):
                     continue
@@ -438,8 +546,10 @@ class YosupoSyncer:
                 if not gen_exe.exists():
                     continue
 
-                num_to_generate = int(test_entry.get("number", 1))
+                num_to_generate = min(int(test_entry.get("number", 1)), 2)
                 for seed in range(1, num_to_generate + 1):
+                    if len(generated_tests) >= MAX_GENERATED_TESTS:
+                        break
                     try:
                         # Run generator with seed
                         gen_res = subprocess.run(
@@ -448,12 +558,14 @@ class YosupoSyncer:
                         if gen_res.returncode != 0 or not gen_res.stdout:
                             continue
                         input_data = gen_res.stdout
+                        if len(input_data) > MAX_TEST_SIZE_BYTES:
+                            continue
 
                         # Run reference solution to get expected output
                         sol_res = subprocess.run(
                             [str(sol_exe)], input=input_data, capture_output=True, timeout=15
                         )
-                        if sol_res.returncode != 0:
+                        if sol_res.returncode != 0 or not sol_res.stdout or len(sol_res.stdout) > MAX_TEST_SIZE_BYTES:
                             continue
 
                         in_text = input_data.decode("utf-8", errors="ignore").strip()

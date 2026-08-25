@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ImpleGym - Problem Explorer</title>
-  <!-- KaTeX for Math Equations -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
-  <!-- Marked for Markdown Parsing -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- KaTeX for Math Equations (Local Fast Load) -->
+  <link rel="stylesheet" href="/static/vendor/katex.min.css">
+  <script src="/static/vendor/katex.min.js"></script>
+  <script src="/static/vendor/auto-render.min.js"></script>
+  <!-- Marked for Markdown Parsing (Local Fast Load) -->
+  <script src="/static/vendor/marked.min.js"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -242,6 +242,58 @@
         </div>
         <div class="modal-footer" style="display: flex; gap: 0.5rem;">
           <button id="btn-save-ai-config" class="btn btn-primary btn-block">💾 Save AI Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yosupo Synchronization Live Progress Modal -->
+    <div id="sync-progress-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card sync-modal-card">
+        <div class="modal-header">
+          <div class="sync-modal-title">
+            <span id="sync-icon" class="sync-icon-spin">🔄</span>
+            <h3>Syncing Official Yosupo Repository</h3>
+          </div>
+          <button id="btn-close-sync-modal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="sync-status-row">
+            <span id="sync-stage-badge" class="sync-badge badge-idle">Idle</span>
+            <span id="sync-timer-badge" class="sync-badge badge-time">⏱️ 0.0s</span>
+          </div>
+
+          <div class="sync-details-box">
+            <div class="sync-meta-item">
+              <span class="sync-meta-label">Current Problem</span>
+              <span id="sync-current-slug" class="sync-meta-val">-</span>
+            </div>
+            <div class="sync-meta-item">
+              <span class="sync-meta-label">Category</span>
+              <span id="sync-current-category" class="sync-meta-val">-</span>
+            </div>
+            <div class="sync-meta-item">
+              <span class="sync-meta-label">Progress</span>
+              <span id="sync-counter-text" class="sync-meta-val">0 / 0</span>
+            </div>
+            <div class="sync-meta-item">
+              <span class="sync-meta-label">Total Synced</span>
+              <span id="sync-synced-count" class="sync-meta-val">0</span>
+            </div>
+          </div>
+
+          <div class="sync-progress-wrapper">
+            <div class="sync-progress-track">
+              <div id="sync-progress-fill" class="sync-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="sync-progress-pct-row">
+              <span id="sync-status-message">Ready to synchronize</span>
+              <span id="sync-progress-pct" class="sync-pct-text">0.0%</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer sync-modal-footer">
+          <button id="btn-cancel-sync" class="btn btn-outline-danger btn-sm">⏹️ Cancel Sync</button>
+          <button id="btn-done-sync" class="btn btn-primary btn-sm" style="display: none;">✅ Done</button>
         </div>
       </div>
     </div>

@@ -84,23 +84,11 @@ function initExplorerFilters() {
 
   // Sync Yosupo Repo Button
   if (syncBtn) {
-    syncBtn.addEventListener("click", async () => {
-      syncBtn.disabled = true;
-      syncBtn.textContent = "⏳ Syncing Yosupo Repo...";
-
-      try {
-        const res = await fetch("/api/problems/sync", { method: "POST" });
-        if (!res.ok) throw new Error("Sync failed");
-        const data = await res.json();
-        alert(`Successfully synced ${data.count} problems from official Yosupo repository!`);
+    syncBtn.addEventListener("click", () => {
+      openSyncProgressModal(() => {
         loadProblems(1);
         initCategories();
-      } catch (err) {
-        alert("Sync error: " + err.message);
-      } finally {
-        syncBtn.disabled = false;
-        syncBtn.textContent = "🔄 Sync Official Yosupo Repo";
-      }
+      });
     });
   }
 }

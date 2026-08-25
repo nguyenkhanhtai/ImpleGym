@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 from collections.abc import AsyncGenerator
@@ -7,7 +8,7 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -155,16 +156,84 @@ async def list_problems(
     return create_cached_response(request, data)
 
 
+async def _run_background_sync(force: bool = False) -> None:
+    """Execute problem synchronization in background using an isolated session scope."""
+    try:
+        async with session_scope() as session:
+            from implegym.problems.yosupo_syncer import YosupoSyncer
+
+            syncer = YosupoSyncer(session)
+            await syncer.sync_all_problems(force_regenerate_tests=force)
+    except Exception as ex:
+        from implegym.problems.sync_manager import sync_progress_tracker
+
+        sync_progress_tracker.fail(str(ex))
+
+
 @app.post("/api/problems/sync")
 async def sync_yosupo_problems(
+    background: bool = Query(True, description="Run synchronization in background"),
+    force: bool = Query(False, description="Force re-generation of all test cases"),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Trigger synchronization from official yosupo06/library-checker-problems repository."""
+    from implegym.problems.sync_manager import sync_progress_tracker
     from implegym.problems.yosupo_syncer import YosupoSyncer
 
+    state = sync_progress_tracker.get_state()
+    if state.is_running:
+        return {
+            "status": "already_running",
+            "message": "Synchronization is already running",
+            "progress": state.model_dump(),
+        }
+
+    if background:
+        asyncio.create_task(_run_background_sync(force=force))
+        return {
+            "status": "started",
+            "message": "Problem synchronization started in background",
+            "progress": sync_progress_tracker.get_state().model_dump(),
+        }
+
     syncer = YosupoSyncer(db)
-    count = await syncer.sync_all_problems()
+    count = await syncer.sync_all_problems(force_regenerate_tests=force)
     return {"status": "ok", "synced_count": count}
+
+
+@app.get("/api/problems/sync/status")
+async def get_sync_status() -> dict[str, Any]:
+    """Get the current real-time status of the Yosupo synchronization job."""
+    from implegym.problems.sync_manager import sync_progress_tracker
+
+    return sync_progress_tracker.get_state().model_dump()
+
+
+@app.get("/api/problems/sync/stream")
+async def stream_sync_progress() -> StreamingResponse:
+    """Stream real-time synchronization progress via Server-Sent Events (SSE)."""
+    from implegym.problems.sync_manager import sync_progress_tracker
+
+    return StreamingResponse(
+        sync_progress_tracker.event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/problems/sync/cancel")
+async def cancel_sync() -> dict[str, Any]:
+    """Request graceful cancellation of the active synchronization job."""
+    from implegym.problems.sync_manager import sync_progress_tracker
+
+    if not sync_progress_tracker.get_state().is_running:
+        return {"status": "not_running", "message": "No active synchronization job to cancel"}
+    sync_progress_tracker.request_cancel()
+    return {"status": "cancelling", "message": "Cancellation requested"}
 
 
 @app.post("/api/problems/{slug}/sync")

@@ -402,3 +402,21 @@ async def test_contest_exact_number_of_chosen_problems(
     assert active_sess["num_problems"] == target_n
     assert len(active_sess["problems"]) == target_n
     assert len(active_sess["problem_ids"]) == target_n
+
+
+@pytest.mark.asyncio
+async def test_sync_yosupo_api_endpoints(async_client: AsyncClient) -> None:
+    """Test sync status, background start, and cancel endpoints."""
+    # 1. Get initial sync status
+    status_res = await async_client.get("/api/problems/sync/status")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert "is_running" in status_data
+    assert "stage" in status_data
+    assert "percent" in status_data
+
+    # 2. Cancel endpoint when not running
+    cancel_res = await async_client.post("/api/problems/sync/cancel")
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] in ("not_running", "cancelling")
+

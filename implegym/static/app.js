@@ -500,6 +500,17 @@ function formatDuration(seconds) {
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
+// Resume Stopwatch after judging, adjusting start time so judging latency is not penalized
+function resumeStopwatchAfterJudging(judgingDurSec = 0) {
+  if (!activeSession || activeSession.status === "ac" || activeSession.status === "stopped") return;
+  if (judgingDurSec > 0 && activeSession.started_at) {
+    const currentStartMs = parseUtcDate(activeSession.started_at);
+    const adjustedStartMs = currentStartMs + (judgingDurSec * 1000);
+    activeSession.started_at = new Date(adjustedStartMs).toISOString();
+  }
+  startStopwatch(activeSession.started_at, null, "active");
+}
+
 // Handle Solution Submission
 async function submitSolution() {
   if (!activeSession) {
@@ -511,6 +522,7 @@ async function submitSolution() {
   const compiler = document.getElementById("compiler-select").value;
   const flags = document.getElementById("compiler-flags").value;
   const btn = document.getElementById("btn-submit");
+  const statusElem = document.getElementById("session-status-text");
 
   if (!code.trim()) {
     alert("Please write some code before submitting!");
@@ -519,6 +531,17 @@ async function submitSolution() {
 
   btn.disabled = true;
   btn.textContent = "⏳ Running Tests...";
+
+  // Pause stopwatch while judging is in progress
+  const judgingStartMs = Date.now();
+  if (statusElem) {
+    statusElem.textContent = "⚖️ JUDGING IN PROGRESS (TIMER PAUSED)...";
+    statusElem.style.color = "var(--accent-warning)";
+  }
+  if (stopwatchInterval) {
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+  }
 
   try {
     const res = await fetch("/api/session/submit", {
@@ -544,9 +567,14 @@ async function submitSolution() {
       const endTime = (activeSession && activeSession.finished_at) || new Date().toISOString();
       const totalDur = activeSession ? activeSession.total_duration_seconds : null;
       startStopwatch(startTime, endTime, "ac", totalDur);
+    } else {
+      // Not AC -> Resume stopwatch without penalizing for judging time
+      const judgingDurSec = (Date.now() - judgingStartMs) / 1000;
+      resumeStopwatchAfterJudging(judgingDurSec);
     }
   } catch (err) {
     alert("Submission error: " + err.message);
+    resumeStopwatchAfterJudging(0);
   } finally {
     btn.disabled = false;
     btn.textContent = "🚀 Submit Solution";
@@ -710,21 +738,11 @@ function initEventListeners() {
   // Sync Yosupo Repo Button
   const syncBtn = document.getElementById("btn-sync-yosupo");
   if (syncBtn) {
-    syncBtn.addEventListener("click", async () => {
-      syncBtn.disabled = true;
-      syncBtn.textContent = "⏳ Syncing Yosupo Repo...";
-      try {
-        const res = await fetch("/api/problems/sync", { method: "POST" });
-        const data = await res.json();
-        alert(`Successfully synced ${data.synced_count} problems from Yosupo repo!`);
+    syncBtn.addEventListener("click", () => {
+      openSyncProgressModal(() => {
         loadProblems();
         initCategories();
-      } catch (err) {
-        alert("Failed to sync Yosupo repository: " + err.message);
-      } finally {
-        syncBtn.disabled = false;
-        syncBtn.textContent = "🔄 Sync Official Yosupo Repo";
-      }
+      });
     });
   }
 
