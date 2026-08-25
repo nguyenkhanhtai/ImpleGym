@@ -1090,6 +1090,19 @@ ImpleGym/
 
 ---
 
+#### User Prompt 78
+> "ý là họ có number cho từng generator mà nên là hãy sử dụng từng generator theo số lượng mà họ ghi trong info.toml và bỏ cái max generated cases đi nhá" (Use exact number for each generator as specified in info.toml without artificial limits)
+
+#### Agent Actions
+- **Full Fidelity `info.toml` Testcase Generation**:
+  1. Updated `_generate_testcases_from_info_toml()` in [`implegym/problems/yosupo_syncer.py`](file:///workspace/ImpleGym/implegym/problems/yosupo_syncer.py) to read `num_to_generate = int(test_entry.get("number", 1))` directly from each `[[tests]]` block without any artificial truncation or capping.
+  2. Removed `per_generator_count` and hardcoded limits so each problem generates 100% of its official authored test suite (`small_01` to `small_10`, `random_01` to `random_05`, `max_random_01` to `max_random_05`, etc.).
+  3. Made `max_tests: int | None = None` optional across CLI (`sync-yosupo`), API routes (`/api/problems/sync`), and syncer functions.
+- **Verification**:
+  - `62/62 tests passed in 26.37s`.
+
+---
+
 ## 4. Execution Tracker & Results
 
 | Step | Component | Status | Verification & Notes |
