@@ -524,6 +524,30 @@ class YosupoSyncer:
         out_dir = target_dir or (Path("data") / "testcases" / slug)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # Collect expected valid test filenames for this problem
+        valid_filenames: set[str] = set()
+        for test_entry in tests_config:
+            test_name = test_entry.get("name", "")
+            if not test_name.endswith(".cpp"):
+                continue
+            gen_stem = Path(test_name).stem
+            num_to_gen = int(test_entry.get("number", 1))
+            for seed in range(1, num_to_gen + 1):
+                valid_filenames.add(f"{gen_stem}_{seed:02d}.in")
+                valid_filenames.add(f"{gen_stem}_{seed:02d}.out")
+
+        # Purge any unexpected, stale, or orphan files that do not belong to info.toml
+        for disk_file in list(out_dir.glob("*")):
+            if disk_file.is_file():
+                # Allow official sample cases
+                if disk_file.name.startswith(("00_sample_", "example_")) and disk_file.suffix in (".in", ".out"):
+                    continue
+                if disk_file.name not in valid_filenames:
+                    try:
+                        disk_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
         generated_tests: list[dict[str, str]] = []
         created_files: list[Path] = []
         sol_exe: Path | None = None

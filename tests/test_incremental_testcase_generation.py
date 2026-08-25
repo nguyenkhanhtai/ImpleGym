@@ -115,3 +115,81 @@ int main() {
         force=True,
     )
     assert len(tests_3) == 2
+
+
+def test_extraneous_file_purge_in_testcases_dir(tmp_path: Path) -> None:
+    """Verify that any rogue or unlisted files in testcases directory are automatically deleted."""
+    prob_dir = tmp_path / "mock_problem2"
+    gen_dir = prob_dir / "gen"
+    sol_dir = prob_dir / "sol"
+    gen_dir.mkdir(parents=True)
+    sol_dir.mkdir(parents=True)
+
+    info_toml = prob_dir / "info.toml"
+    info_toml.write_text(
+        """
+title = "Mock Purge Problem"
+timelimit = 2.0
+
+[[tests]]
+    name = "small.cpp"
+    number = 2
+""",
+        encoding="utf-8",
+    )
+
+    gen_cpp = gen_dir / "small.cpp"
+    gen_cpp.write_text(
+        r"""
+#include <iostream>
+int main() {
+    std::cout << "42\n";
+    return 0;
+}
+""",
+        encoding="utf-8",
+    )
+
+    sol_cpp = sol_dir / "correct.cpp"
+    sol_cpp.write_text(
+        r"""
+#include <iostream>
+int main() {
+    int x;
+    if (std::cin >> x) std::cout << x << "\n";
+    return 0;
+}
+""",
+        encoding="utf-8",
+    )
+
+    target_disk_dir = tmp_path / "testcases" / "mock_problem2"
+    target_disk_dir.mkdir(parents=True)
+
+    # Place extraneous rogue files in target directory
+    rogue_1 = target_disk_dir / "old_random_99.in"
+    rogue_2 = target_disk_dir / "corrupted_temp.out"
+    sample_f = target_disk_dir / "00_sample_00.in"
+    rogue_1.write_text("rogue data", encoding="utf-8")
+    rogue_2.write_text("rogue data", encoding="utf-8")
+    sample_f.write_text("sample data", encoding="utf-8")
+
+    syncer = YosupoSyncer(MagicMock())
+    syncer._generate_testcases_from_info_toml(
+        problem_dir=prob_dir,
+        params={},
+        target_dir=target_disk_dir,
+        force=False,
+    )
+
+    # Rogue files must be wiped out
+    assert not rogue_1.exists()
+    assert not rogue_2.exists()
+
+    # Official sample and valid generated test files must be present
+    assert sample_f.exists()
+    assert (target_disk_dir / "small_01.in").exists()
+    assert (target_disk_dir / "small_01.out").exists()
+    assert (target_disk_dir / "small_02.in").exists()
+    assert (target_disk_dir / "small_02.out").exists()
+
