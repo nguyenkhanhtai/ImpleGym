@@ -240,6 +240,68 @@ def list_probs() -> None:
     asyncio.run(_list())
 
 
+@app.command("reset")
+@app.command("db-reset")
+def reset_system(
+    testcases: bool = typer.Option(
+        False, "--testcases", "-t", help="Clear only on-disk generated testcases in data/testcases/"
+    ),
+    history: bool = typer.Option(
+        False, "--history", help="Clear only practice sessions and submission history"
+    ),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip confirmation prompt"
+    ),
+) -> None:
+    """Reset database records and/or cached on-disk testcases."""
+    import shutil
+    from sqlalchemy import text
+
+    if not yes:
+        target_desc = (
+            "generated testcases"
+            if testcases
+            else ("submission history" if history else "entire database & testcase cache")
+        )
+        confirm = typer.confirm(f"⚠️ Are you sure you want to reset {target_desc}?", default=False)
+        if not confirm:
+            console.print("[yellow]Reset cancelled.[/yellow]")
+            return
+
+    async def _do_reset() -> None:
+        await init_db()
+        async with session_scope() as session:
+            if history:
+                await session.execute(text("DELETE FROM ai_reviews"))
+                await session.execute(text("DELETE FROM submissions"))
+                await session.execute(text("DELETE FROM practice_sessions"))
+                await session.commit()
+                console.print("[bold green]✅ Successfully cleared practice sessions and submission history.[/bold green]")
+            elif testcases:
+                tc_path = Path("data") / "testcases"
+                if tc_path.exists():
+                    shutil.rmtree(tc_path)
+                    tc_path.mkdir(parents=True, exist_ok=True)
+                console.print("[bold green]✅ Successfully cleared on-disk generated testcases (data/testcases/).[/bold green]")
+            else:
+                # Full reset
+                await session.execute(text("DELETE FROM ai_reviews"))
+                await session.execute(text("DELETE FROM submissions"))
+                await session.execute(text("DELETE FROM practice_sessions"))
+                await session.execute(text("DELETE FROM problems"))
+                await session.commit()
+
+                tc_path = Path("data") / "testcases"
+                if tc_path.exists():
+                    shutil.rmtree(tc_path)
+                    tc_path.mkdir(parents=True, exist_ok=True)
+
+                console.print("[bold green]✅ Successfully reset database and testcase files.[/bold green]")
+                console.print("[dim]Tip: Run 'implegym sync-yosupo' to re-sync all problems fresh from repository.[/dim]")
+
+    asyncio.run(_do_reset())
+
+
 @app.command("db-inspect")
 def db_inspect() -> None:
     """Inspect active database (SQLite or PostgreSQL), table schemas, row counts, and health."""

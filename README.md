@@ -117,6 +117,12 @@ uv run implegym list-probs
 # Customize difficulty of a problem (1 to 10)
 uv run implegym set-difficulty <slug> <difficulty>
 
+# Reset database & cached testcases
+uv run implegym reset                      # Full reset (all problems, submissions & testcases)
+uv run implegym reset --testcases          # Clear only on-disk generated testcase files
+uv run implegym reset --history            # Clear only practice sessions and submission history
+uv run implegym reset --yes                # Skip interactive confirmation
+
 # Sync data between two databases (e.g. SQLite to PostgreSQL)
 uv run implegym sync-db --source sqlite+aiosqlite:///data/implegym.db --target postgresql+asyncpg://postgres:postgrespassword@localhost:5432/implegym
 ```
