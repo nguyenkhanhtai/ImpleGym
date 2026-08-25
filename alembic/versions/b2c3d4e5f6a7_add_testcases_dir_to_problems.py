@@ -73,8 +73,15 @@ def upgrade() -> None:
             if not out_file.exists():
                 out_file.write_text(tc.get("output", ""), encoding="utf-8")
 
-        # Trim sample_cases in DB to only first 2 sample cases for UI display
-        clean_samples = cases[:2]
+        # Filter genuine official sample cases for UI display (exclude generated max tests)
+        clean_samples = [
+            tc
+            for tc in cases
+            if not str(tc.get("name", "")).startswith(
+                ("random", "max_random", "small", "large", "gen", "test", "edge", "hack", "path")
+            )
+            and len(tc.get("input", "")) <= 10000
+        ][:2]
         clean_samples_json = json.dumps(clean_samples)
         dir_str = str(target_dir).replace("\\", "/")
 
