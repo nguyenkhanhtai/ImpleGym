@@ -75,14 +75,21 @@ def sync_yosupo(
         None, "--repo-dir", "-d", help="Custom local repo path to clone or sync into"
     ),
     force: bool = typer.Option(
-        False, "--force", "-f", help="Force re-generation and compilation of test cases for all problems"
+        False,
+        "--force",
+        "-f",
+        help="Force re-generation and compilation of test cases for all problems",
     ),
     max_tests: int | None = typer.Option(
-        None, "--max-tests", "-n", help="Optional cap on generated test cases per problem (defaults to full count in info.toml)"
+        None,
+        "--max-tests",
+        "-n",
+        help="Optional cap on generated test cases per problem (defaults to full count in info.toml)",
     ),
 ) -> None:
     """Clone or pull official yosupo06/library-checker-problems and sync all problems to PostgreSQL."""
     from typing import Any
+
     from rich.progress import (
         BarColumn,
         MofNCompleteColumn,
@@ -120,14 +127,35 @@ def sync_yosupo(
                     slug = state.get("current_slug", "")
 
                     if stage == "git_clone_pull":
-                        progress.update(task_id, description="[cyan]Updating Git repo...", total=100, completed=10)
+                        progress.update(
+                            task_id,
+                            description="[cyan]Updating Git repo...",
+                            total=100,
+                            completed=10,
+                        )
                     elif stage == "scanning":
-                        progress.update(task_id, description="[cyan]Scanning problem files...", total=100, completed=25)
+                        progress.update(
+                            task_id,
+                            description="[cyan]Scanning problem files...",
+                            total=100,
+                            completed=25,
+                        )
                     elif stage == "syncing_problems":
-                        desc = f"[bold cyan]Syncing:[/] [green]{slug}[/]" if slug else "[cyan]Syncing problems..."
-                        progress.update(task_id, description=desc, total=total or 100, completed=current)
+                        desc = (
+                            f"[bold cyan]Syncing:[/] [green]{slug}[/]"
+                            if slug
+                            else "[cyan]Syncing problems..."
+                        )
+                        progress.update(
+                            task_id, description=desc, total=total or 100, completed=current
+                        )
                     elif stage == "completed":
-                        progress.update(task_id, description="[bold green]Sync completed![/]", total=total or current or 100, completed=total or current or 100)
+                        progress.update(
+                            task_id,
+                            description="[bold green]Sync completed![/]",
+                            total=total or current or 100,
+                            completed=total or current or 100,
+                        )
 
                 count = await syncer.sync_all_problems(
                     progress_callback=_on_progress,
@@ -249,12 +277,11 @@ def reset_system(
     history: bool = typer.Option(
         False, "--history", help="Clear only practice sessions and submission history"
     ),
-    yes: bool = typer.Option(
-        False, "--yes", "-y", help="Skip confirmation prompt"
-    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ) -> None:
     """Reset database records and/or cached on-disk testcases."""
     import shutil
+
     from sqlalchemy import text
 
     if not yes:
@@ -276,13 +303,17 @@ def reset_system(
                 await session.execute(text("DELETE FROM submissions"))
                 await session.execute(text("DELETE FROM practice_sessions"))
                 await session.commit()
-                console.print("[bold green]✅ Successfully cleared practice sessions and submission history.[/bold green]")
+                console.print(
+                    "[bold green]✅ Successfully cleared practice sessions and submission history.[/bold green]"
+                )
             elif testcases:
                 tc_path = Path("data") / "testcases"
                 if tc_path.exists():
                     shutil.rmtree(tc_path)
                     tc_path.mkdir(parents=True, exist_ok=True)
-                console.print("[bold green]✅ Successfully cleared on-disk generated testcases (data/testcases/).[/bold green]")
+                console.print(
+                    "[bold green]✅ Successfully cleared on-disk generated testcases (data/testcases/).[/bold green]"
+                )
             else:
                 # Full reset
                 await session.execute(text("DELETE FROM ai_reviews"))
@@ -296,8 +327,12 @@ def reset_system(
                     shutil.rmtree(tc_path)
                     tc_path.mkdir(parents=True, exist_ok=True)
 
-                console.print("[bold green]✅ Successfully reset database and testcase files.[/bold green]")
-                console.print("[dim]Tip: Run 'implegym sync-yosupo' to re-sync all problems fresh from repository.[/dim]")
+                console.print(
+                    "[bold green]✅ Successfully reset database and testcase files.[/bold green]"
+                )
+                console.print(
+                    "[dim]Tip: Run 'implegym sync-yosupo' to re-sync all problems fresh from repository.[/dim]"
+                )
 
     asyncio.run(_do_reset())
 
@@ -305,7 +340,8 @@ def reset_system(
 @app.command("db-inspect")
 def db_inspect() -> None:
     """Inspect active database (SQLite or PostgreSQL), table schemas, row counts, and health."""
-    from sqlalchemy import func, select, text
+    from sqlalchemy import func, select
+
     from implegym.db.models import AIReview, CustomProblem, PracticeSession, Problem, Submission
 
     async def _inspect() -> None:
@@ -376,7 +412,8 @@ def db_inspect() -> None:
 @app.command("db-schema")
 def db_schema(
     table_name: str | None = typer.Argument(
-        None, help="Table name to inspect schema (e.g. problems, submissions). Leave empty for all tables."
+        None,
+        help="Table name to inspect schema (e.g. problems, submissions). Leave empty for all tables.",
     ),
 ) -> None:
     """Inspect column definitions, types, nullability, and keys for database tables."""
@@ -410,7 +447,11 @@ def db_schema(
             schema_table.add_column("Default", style="dim")
 
             for col in t_obj.columns:
-                key_type = "🔑 Primary Key" if col.primary_key else ("🔗 Foreign Key" if col.foreign_keys else "")
+                key_type = (
+                    "🔑 Primary Key"
+                    if col.primary_key
+                    else ("🔗 Foreign Key" if col.foreign_keys else "")
+                )
                 schema_table.add_row(
                     col.name,
                     str(col.type),
@@ -427,16 +468,21 @@ def db_schema(
 @app.command("db-view")
 def db_view(
     table_name: str = typer.Argument(
-        "problems", help="Table name to view rows (problems, practice_sessions, submissions, custom_problems, ai_reviews)"
+        "problems",
+        help="Table name to view rows (problems, practice_sessions, submissions, custom_problems, ai_reviews)",
     ),
     limit: int = typer.Option(10, "--limit", "-n", help="Number of rows to display"),
     offset: int = typer.Option(0, "--offset", "-o", help="Offset / starting row index"),
     columns: str | None = typer.Option(
-        None, "--columns", "-c", help="Comma-separated column names to show (e.g. id,slug,category,difficulty)"
+        None,
+        "--columns",
+        "-c",
+        help="Comma-separated column names to show (e.g. id,slug,category,difficulty)",
     ),
 ) -> None:
     """Browse and inspect actual rows and column values of a database table."""
     from sqlalchemy import text
+
     from implegym.db.models import Base
 
     async def _view() -> None:
@@ -478,6 +524,7 @@ def db_view(
                         formatted_cells.append("[dim]NULL[/dim]")
                     elif isinstance(val, (dict, list)):
                         import json
+
                         raw_json = json.dumps(val)
                         if len(raw_json) > 40:
                             formatted_cells.append(f"[dim]{raw_json[:35]}...[/dim]")
@@ -549,14 +596,19 @@ def db_query(
 @app.command("db-record")
 def db_record(
     table_name: str = typer.Argument(
-        ..., help="Table name (problems, submissions, practice_sessions, custom_problems, ai_reviews)"
+        ...,
+        help="Table name (problems, submissions, practice_sessions, custom_problems, ai_reviews)",
     ),
-    ident: str = typer.Argument(..., help="Record ID (integer) or Problem Slug (e.g. 1 or 'aplusb')"),
+    ident: str = typer.Argument(
+        ..., help="Record ID (integer) or Problem Slug (e.g. 1 or 'aplusb')"
+    ),
 ) -> None:
     """Inspect a single database record in full detail with formatted fields."""
     import json
+
     from rich.panel import Panel
     from sqlalchemy import text
+
     from implegym.db.models import Base
 
     async def _record() -> None:

@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -14,7 +15,9 @@ class SyncProgressState(BaseModel):
     """Data contract representing the real-time state of a synchronization job."""
 
     is_running: bool = False
-    stage: str = "idle"  # idle, git_clone_pull, scanning, syncing_problems, completed, error, cancelled
+    stage: str = (
+        "idle"  # idle, git_clone_pull, scanning, syncing_problems, completed, error, cancelled
+    )
     current: int = 0
     total: int = 0
     current_slug: str = ""
@@ -108,7 +111,9 @@ class SyncProgressTracker:
             self._state.duration_seconds = round(time.time() - self._state.started_at, 1)
 
         if self._state.total > 0:
-            self._state.percent = round(min(100.0, (self._state.current / self._state.total) * 100.0), 1)
+            self._state.percent = round(
+                min(100.0, (self._state.current / self._state.total) * 100.0), 1
+            )
         else:
             self._state.percent = 0.0
 
@@ -161,7 +166,11 @@ class SyncProgressTracker:
             while True:
                 data = await q.get()
                 yield f"data: {json.dumps(data)}\n\n"
-                if not data.get("is_running", True) and data.get("stage") in ("completed", "error", "cancelled"):
+                if not data.get("is_running", True) and data.get("stage") in (
+                    "completed",
+                    "error",
+                    "cancelled",
+                ):
                     break
         finally:
             if q in self._listeners:

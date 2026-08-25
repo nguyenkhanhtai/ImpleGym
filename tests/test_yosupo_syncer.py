@@ -98,12 +98,16 @@ async def test_sync_progress_tracker_lifecycle() -> None:
 @pytest.mark.asyncio
 async def test_parse_problem_directory_generate_tests_flag(db_session: AsyncSession) -> None:
     """Test that parse_problem_directory respects the generate_tests boolean flag."""
-    from unittest.mock import MagicMock
     from pathlib import Path
+    from unittest.mock import MagicMock
 
     syncer = YosupoSyncer(db_session)
-    syncer._generate_testcases_from_info_toml = MagicMock(return_value=[{"input": "gen\n", "output": "out\n"}])
-    syncer._extract_sample_cases = MagicMock(return_value=[{"input": "sample\n", "output": "sample_out\n"}])
+    syncer._generate_testcases_from_info_toml = MagicMock(
+        return_value=[{"input": "gen\n", "output": "out\n"}]
+    )
+    syncer._extract_sample_cases = MagicMock(
+        return_value=[{"input": "sample\n", "output": "sample_out\n"}]
+    )
     syncer._extract_markdown_sections = MagicMock(return_value=("statement", "", "", ""))
 
     dummy_dir = Path("data/yosupo_repo/sample/aplusb")
@@ -127,12 +131,15 @@ async def test_yosupo_syncer_preserves_cached_tests_without_force(
 ) -> None:
     """Test that sync_all_problems skips expensive test generation when testcases are already cached."""
     from unittest.mock import MagicMock
+
     from implegym.db.models import Problem
 
     # Create dummy single problem structure in tmp_path
     prob_dir = tmp_path / "sample" / "dummy_aplusb"
     prob_dir.mkdir(parents=True, exist_ok=True)
-    (prob_dir / "info.toml").write_text('title = "Dummy A + B"\ntimelimit = 2.0\n', encoding="utf-8")
+    (prob_dir / "info.toml").write_text(
+        'title = "Dummy A + B"\ntimelimit = 2.0\n', encoding="utf-8"
+    )
     (prob_dir / "task.md").write_text("## Problem Statement\nCalculate A+B\n", encoding="utf-8")
 
     # Add existing problem into DB with cached testcases
@@ -153,7 +160,9 @@ async def test_yosupo_syncer_preserves_cached_tests_without_force(
 
     syncer = YosupoSyncer(db_session, repo_dir=tmp_path)
     # Spy on _generate_testcases_from_info_toml
-    syncer._generate_testcases_from_info_toml = MagicMock(return_value=[{"name": "generated_01", "input": "99 1\n", "output": "100\n"}])
+    syncer._generate_testcases_from_info_toml = MagicMock(
+        return_value=[{"name": "generated_01", "input": "99 1\n", "output": "100\n"}]
+    )
 
     # 1. Run sync_all_problems with force_regenerate_tests=False
     count = await syncer.sync_all_problems(force_regenerate_tests=False)
@@ -171,7 +180,3 @@ async def test_yosupo_syncer_preserves_cached_tests_without_force(
     await syncer.sync_all_problems(force_regenerate_tests=True)
     # Verify testcase generator was now invoked
     assert syncer._generate_testcases_from_info_toml.called
-
-
-
-

@@ -80,8 +80,8 @@ int main() {
     )
 
     assert len(tests_1) == 2
-    in_files = sorted(list(target_disk_dir.glob("*.in")))
-    out_files = sorted(list(target_disk_dir.glob("*.out")))
+    in_files = sorted(target_disk_dir.glob("*.in"))
+    out_files = sorted(target_disk_dir.glob("*.out"))
     assert len(in_files) == 2
     assert len(out_files) == 2
 
@@ -192,4 +192,3 @@ int main() {
     assert (target_disk_dir / "small_01.out").exists()
     assert (target_disk_dir / "small_02.in").exists()
     assert (target_disk_dir / "small_02.out").exists()
-

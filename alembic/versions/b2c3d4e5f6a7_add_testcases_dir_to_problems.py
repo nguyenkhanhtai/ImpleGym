@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -29,9 +30,7 @@ def upgrade() -> None:
     # 1. Add testcases_dir column to problems table if not present
     with op.batch_alter_table("problems", schema=None) as batch_op:
         if "testcases_dir" not in existing_cols:
-            batch_op.add_column(
-                sa.Column("testcases_dir", sa.String(length=512), nullable=True)
-            )
+            batch_op.add_column(sa.Column("testcases_dir", sa.String(length=512), nullable=True))
 
     # 2. Data Migration: Export existing testcases from JSON column to on-disk files
     res = conn.execute(sa.text("SELECT id, slug, sample_cases FROM problems"))

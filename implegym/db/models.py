@@ -52,7 +52,7 @@ class Problem(Base):
     sample_cases: Mapped[list[dict[str, str]]] = mapped_column(
         SQLiteCompatibleJSON, default=list, nullable=False
     )
-    testcases_dir: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, default=None)
+    testcases_dir: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)
     time_limit: Mapped[float] = mapped_column(Float, default=2.0, nullable=False)
     memory_limit_mb: Mapped[int] = mapped_column(Integer, default=1024, nullable=False)
     tags: Mapped[list[str]] = mapped_column(SQLiteCompatibleJSON, default=list, nullable=False)

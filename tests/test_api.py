@@ -419,4 +419,3 @@ async def test_sync_yosupo_api_endpoints(async_client: AsyncClient) -> None:
     cancel_res = await async_client.post("/api/problems/sync/cancel")
     assert cancel_res.status_code == 200
     assert cancel_res.json()["status"] in ("not_running", "cancelling")
-

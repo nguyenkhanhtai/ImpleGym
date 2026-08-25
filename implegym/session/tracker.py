@@ -257,7 +257,11 @@ class SessionTracker:
                     practice_session = cand
 
         # Ensure testcases are generated and present in on-disk testcases_dir
-        tc_dir = Path(problem.testcases_dir) if problem.testcases_dir else (Path("data") / "testcases" / problem.slug)
+        tc_dir = (
+            Path(problem.testcases_dir)
+            if problem.testcases_dir
+            else (Path("data") / "testcases" / problem.slug)
+        )
         has_disk_tests = tc_dir.exists() and any(
             not f.name.startswith("00_sample") for f in tc_dir.glob("*.in")
         )

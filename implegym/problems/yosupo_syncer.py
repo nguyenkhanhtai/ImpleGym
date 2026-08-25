@@ -410,7 +410,7 @@ class YosupoSyncer:
             statement_part = parts[0].strip()
             rest = parts[1]
             if "## Input" in rest or "## Output" in rest:
-                sub_parts = re.split(r"##\s+(?:Input|Output)", rest, 1)
+                sub_parts = re.split(r"##\s+(?:Input|Output)", rest, maxsplit=1)
                 constraints = sub_parts[0].strip()
             else:
                 constraints = rest.strip()
@@ -431,9 +431,7 @@ class YosupoSyncer:
 
         return statement_part, input_fmt, output_fmt, constraints
 
-    def _extract_sample_cases(
-        self, problem_dir: Path, raw_md: str
-    ) -> list[dict[str, str]]:
+    def _extract_sample_cases(self, problem_dir: Path, raw_md: str) -> list[dict[str, str]]:
         """Extract sample cases from example_*.in/out files or task.md."""
         sample_cases: list[dict[str, str]] = []
 
@@ -441,17 +439,28 @@ class YosupoSyncer:
         gen_dir = problem_dir / "gen"
         in_files: list[Path] = []
         if gen_dir.exists():
-            in_files = sorted(list(gen_dir.glob("example_*.in")) + list(gen_dir.glob("example-*.in")) + list(gen_dir.glob("example.in")))
+            in_files = sorted(
+                [
+                    *gen_dir.glob("example_*.in"),
+                    *gen_dir.glob("example-*.in"),
+                    *gen_dir.glob("example.in"),
+                ]
+            )
 
         if not in_files:
-            in_files = sorted(list(problem_dir.glob("example_*.in")) + list(problem_dir.glob("example.in")))
+            in_files = sorted(
+                [
+                    *problem_dir.glob("example_*.in"),
+                    *problem_dir.glob("example.in"),
+                ]
+            )
 
         if in_files:
             for in_f in in_files:
                 out_f = in_f.with_suffix(".out")
                 if not out_f.exists():
                     out_f = in_f.parent / f"{in_f.stem}.out"
-                
+
                 in_content = in_f.read_text(encoding="utf-8", errors="ignore").strip()
                 out_content = ""
                 if out_f.exists():
@@ -460,22 +469,26 @@ class YosupoSyncer:
                     out_content = self._generate_sample_output(problem_dir, in_f)
 
                 if in_content:
-                    sample_cases.append({
-                        "name": in_f.stem,
-                        "input": in_content + "\n",
-                        "output": out_content + "\n" if out_content else "",
-                    })
+                    sample_cases.append(
+                        {
+                            "name": in_f.stem,
+                            "input": in_content + "\n",
+                            "output": out_content + "\n" if out_content else "",
+                        }
+                    )
 
         # 2. If no files, fallback to regex parse markdown ```blocks
         if not sample_cases:
             matches = re.findall(r"```(?:example|input|output)?\s*\n([\s\S]*?)\n```", raw_md)
             if len(matches) >= 2:
                 for i in range(0, len(matches) - 1, 2):
-                    sample_cases.append({
-                        "name": f"sample_{i // 2 + 1}",
-                        "input": matches[i].strip() + "\n",
-                        "output": matches[i + 1].strip() + "\n",
-                    })
+                    sample_cases.append(
+                        {
+                            "name": f"sample_{i // 2 + 1}",
+                            "input": matches[i].strip() + "\n",
+                            "output": matches[i + 1].strip() + "\n",
+                        }
+                    )
 
         return sample_cases
 
@@ -540,7 +553,10 @@ class YosupoSyncer:
         for disk_file in list(out_dir.glob("*")):
             if disk_file.is_file():
                 # Allow official sample cases
-                if disk_file.name.startswith(("00_sample_", "example_")) and disk_file.suffix in (".in", ".out"):
+                if disk_file.name.startswith(("00_sample_", "example_")) and disk_file.suffix in (
+                    ".in",
+                    ".out",
+                ):
                     continue
                 if disk_file.name not in valid_filenames:
                     try:
@@ -580,12 +596,19 @@ class YosupoSyncer:
                     out_path = out_dir / f"{tc_stem}.out"
 
                     # Incremental check: if files already exist on disk and not force, skip generation!
-                    if in_path.exists() and out_path.exists() and in_path.stat().st_size > 0 and not force:
-                        generated_tests.append({
-                            "name": tc_stem,
-                            "in_path": str(in_path),
-                            "out_path": str(out_path),
-                        })
+                    if (
+                        in_path.exists()
+                        and out_path.exists()
+                        and in_path.stat().st_size > 0
+                        and not force
+                    ):
+                        generated_tests.append(
+                            {
+                                "name": tc_stem,
+                                "in_path": str(in_path),
+                                "out_path": str(out_path),
+                            }
+                        )
                         continue
 
                     # Needs generation: compile sol and gen lazily if not compiled yet
@@ -610,7 +633,9 @@ class YosupoSyncer:
                                 cmd = ["g++", "-O3", "-std=c++17"]
                                 if common_include.exists():
                                     cmd.extend(["-I", str(common_include)])
-                                cmd.extend(["-I", str(problem_dir), str(sol_file), "-o", str(sol_exe)])
+                                cmd.extend(
+                                    ["-I", str(problem_dir), str(sol_file), "-o", str(sol_exe)]
+                                )
                                 subprocess.run(cmd, capture_output=True, timeout=15)
                                 created_files.append(sol_exe)
                             except Exception:
@@ -649,18 +674,33 @@ class YosupoSyncer:
                         # Run generator directly writing to in_path file on disk
                         with open(in_path, "wb") as f_in:
                             gen_res = subprocess.run(
-                                [str(gen_exe), str(seed)], stdout=f_in, capture_output=False, timeout=10
+                                [str(gen_exe), str(seed)],
+                                stdout=f_in,
+                                capture_output=False,
+                                timeout=10,
                             )
-                        if gen_res.returncode != 0 or not in_path.exists() or in_path.stat().st_size == 0:
+                        if (
+                            gen_res.returncode != 0
+                            or not in_path.exists()
+                            or in_path.stat().st_size == 0
+                        ):
                             in_path.unlink(missing_ok=True)
                             continue
 
                         # Run reference solution directly streaming stdin from in_path and writing to out_path
                         with open(in_path, "rb") as f_in, open(out_path, "wb") as f_out:
                             sol_res = subprocess.run(
-                                [str(sol_exe)], stdin=f_in, stdout=f_out, capture_output=False, timeout=15
+                                [str(sol_exe)],
+                                stdin=f_in,
+                                stdout=f_out,
+                                capture_output=False,
+                                timeout=15,
                             )
-                        if sol_res.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
+                        if (
+                            sol_res.returncode != 0
+                            or not out_path.exists()
+                            or out_path.stat().st_size == 0
+                        ):
                             in_path.unlink(missing_ok=True)
                             out_path.unlink(missing_ok=True)
                             continue

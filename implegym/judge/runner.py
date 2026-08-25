@@ -226,9 +226,7 @@ class JudgeRunner:
             # Check if testcases_dir exists and has *.in files
             tc_dir_path = Path(testcases_dir) if testcases_dir else None
             in_files = (
-                sorted(list(tc_dir_path.glob("*.in")))
-                if tc_dir_path and tc_dir_path.exists()
-                else []
+                sorted(tc_dir_path.glob("*.in")) if tc_dir_path and tc_dir_path.exists() else []
             )
 
             if in_files:
