@@ -242,5 +242,3 @@ difficulty = 8
     assert parsed_2 is not None
     assert parsed_2["difficulty"] == 8
     assert parsed_2["time_limit"] == 4.5
-
-

@@ -103,7 +103,6 @@ async def test_list_problems_and_categories_exclude_test_category(
     assert not any(c.lower() == "test" for c in categories)
 
 
-
 @pytest.mark.asyncio
 async def test_start_session_and_submit_flow(async_client: AsyncClient) -> None:
     """Test starting session, submitting code, and fetching active session."""

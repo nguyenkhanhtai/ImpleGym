@@ -57,7 +57,19 @@ class ProblemSyncer:
 
     def __init__(self, session: AsyncSession, repo_dir: Path | None = None) -> None:
         self.session = session
-        self.repo_dir = repo_dir or settings.problems_base_dir or (Path("data") / "problems_repo" if (Path("data") / "problems_repo").exists() else (Path("data") / "yosupo_repo" if (Path("data") / "yosupo_repo").exists() else Path("data") / "problems_repo"))
+        self.repo_dir = (
+            repo_dir
+            or settings.problems_base_dir
+            or (
+                Path("data") / "problems_repo"
+                if (Path("data") / "problems_repo").exists()
+                else (
+                    Path("data") / "yosupo_repo"
+                    if (Path("data") / "yosupo_repo").exists()
+                    else Path("data") / "problems_repo"
+                )
+            )
+        )
 
     def clone_or_pull_repo(self) -> bool:
         """Clone the repository if missing, or pull latest changes if already present."""
@@ -544,17 +556,23 @@ class ProblemSyncer:
                         out_content = out_f.read_text(encoding="utf-8", errors="ignore").strip()
                     # Check if already generated in testcases cached directory
                     elif cached_out_f.exists() and cached_out_f.stat().st_size > 0:
-                        out_content = cached_out_f.read_text(encoding="utf-8", errors="ignore").strip()
+                        out_content = cached_out_f.read_text(
+                            encoding="utf-8", errors="ignore"
+                        ).strip()
                     # Generate output using reference solution
                     else:
                         if tmp_build_dir is None:
                             tmp_build_dir = tempfile.TemporaryDirectory()
                             sol_dir = problem_dir / "sol"
                             cpp_sols = (
-                                list(sol_dir.glob("correct.cpp"))
-                                + list(sol_dir.glob("main.cpp"))
-                                + list(sol_dir.glob("*.cpp"))
-                            ) if sol_dir.exists() else []
+                                (
+                                    list(sol_dir.glob("correct.cpp"))
+                                    + list(sol_dir.glob("main.cpp"))
+                                    + list(sol_dir.glob("*.cpp"))
+                                )
+                                if sol_dir.exists()
+                                else []
+                            )
                             if cpp_sols:
                                 sol_exe = self._compile_cpp_executable(
                                     cpp_sols[0],
@@ -574,7 +592,9 @@ class ProblemSyncer:
                                     timeout=timeout_sec,
                                 )
                                 if run_res.returncode == 0:
-                                    out_content = run_res.stdout.decode("utf-8", errors="ignore").strip()
+                                    out_content = run_res.stdout.decode(
+                                        "utf-8", errors="ignore"
+                                    ).strip()
                             except Exception as e:
                                 logger.debug(f"Failed running solution for sample {in_f.name}: {e}")
 
@@ -591,7 +611,9 @@ class ProblemSyncer:
                                         timeout=max(10, int(time_limit) + 5),
                                     )
                                     if run_res.returncode == 0:
-                                        out_content = run_res.stdout.decode("utf-8", errors="ignore").strip()
+                                        out_content = run_res.stdout.decode(
+                                            "utf-8", errors="ignore"
+                                        ).strip()
                                 except Exception:
                                     pass
 
@@ -707,10 +729,14 @@ class ProblemSyncer:
 
             sol_dir = problem_dir / "sol"
             cpp_sols = (
-                list(sol_dir.glob("correct.cpp"))
-                + list(sol_dir.glob("main.cpp"))
-                + list(sol_dir.glob("*.cpp"))
-            ) if sol_dir.exists() else []
+                (
+                    list(sol_dir.glob("correct.cpp"))
+                    + list(sol_dir.glob("main.cpp"))
+                    + list(sol_dir.glob("*.cpp"))
+                )
+                if sol_dir.exists()
+                else []
+            )
 
             compiled_gens: dict[str, Path] = {}
 
@@ -832,7 +858,11 @@ class ProblemSyncer:
             # Ensure any sample cases present in out_dir also have non-empty .out outputs
             for sample_in in out_dir.glob("00_sample_*.in"):
                 sample_out = sample_in.with_suffix(".out")
-                if (not sample_out.exists() or sample_out.stat().st_size == 0) and sol_exe and sol_exe.exists():
+                if (
+                    (not sample_out.exists() or sample_out.stat().st_size == 0)
+                    and sol_exe
+                    and sol_exe.exists()
+                ):
                     try:
                         with open(sample_in, "rb") as f_in, open(sample_out, "wb") as f_out:
                             subprocess.run([str(sol_exe)], stdin=f_in, stdout=f_out, timeout=15)
