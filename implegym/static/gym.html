@@ -107,10 +107,17 @@
 
           <!-- Top Section 3: Full-Width Problem Description Card -->
           <div class="problem-statement-card full-width-card" id="problem-statement-card">
-            <div class="statement-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-              <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                <h2 id="stmt-title">Select a problem to start practicing</h2>
-                <span class="category-badge" id="stmt-category">-</span>
+            <div class="statement-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                  <h2 id="stmt-title">Select a problem to start practicing</h2>
+                  <span class="category-badge" id="stmt-category">-</span>
+                </div>
+                <div class="statement-limits-bar" id="stmt-limits-bar">
+                  <span class="limit-item">⏱️ Time Limit: <b id="stmt-time-limit">2.0s</b></span>
+                  <span style="color: var(--border-color); opacity: 0.6;">•</span>
+                  <span class="limit-item">💾 Memory Limit: <b id="stmt-memory-limit">1024 MB</b></span>
+                </div>
               </div>
               <button id="btn-start-practice-banner" class="btn btn-success" style="display: none; font-weight: 700;">▶️ Start Practice & Stopwatch</button>
             </div>

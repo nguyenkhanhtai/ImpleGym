@@ -227,12 +227,13 @@ timelimit = 3.0
     parsed = syncer.parse_problem_directory("tree", prob_dir, generate_tests=False)
     assert parsed is not None
     assert parsed["difficulty"] == 6
+    assert parsed["time_limit"] == 3.0
 
     # 2. info.toml with explicit difficulty = 8 -> extracts 8 directly
     info_toml.write_text(
         """
 title = "Mock Tree Problem"
-timelimit = 3.0
+timelimit = 4.5
 difficulty = 8
 """,
         encoding="utf-8",
@@ -240,5 +241,6 @@ difficulty = 8
     parsed_2 = syncer.parse_problem_directory("tree", prob_dir, generate_tests=False)
     assert parsed_2 is not None
     assert parsed_2["difficulty"] == 8
+    assert parsed_2["time_limit"] == 4.5
 
 

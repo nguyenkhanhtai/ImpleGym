@@ -331,7 +331,12 @@ function setWorkoutSession(session) {
   // Populate metadata
   const prob = session.problem;
   document.getElementById("stmt-title").textContent = prob.title;
-  document.getElementById("stmt-category").textContent = `${prob.category} (${prob.difficulty}/10)`;
+  document.getElementById("stmt-category").textContent = `${prob.category} (Diff: ${prob.difficulty})`;
+  const tlElem = document.getElementById("stmt-time-limit");
+  if (tlElem) tlElem.textContent = `${prob.time_limit !== undefined ? prob.time_limit : 2.0}s`;
+  const mlElem = document.getElementById("stmt-memory-limit");
+  if (mlElem) mlElem.textContent = `${prob.memory_limit_mb || 1024} MB`;
+
   document.getElementById("current-problem-title").textContent = prob.title;
   document.getElementById("current-problem-diff").textContent = prob.difficulty;
   const diffBadge = document.getElementById("current-problem-diff-badge");

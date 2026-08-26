@@ -73,8 +73,17 @@
 
           <div id="forge-preview-card" class="problem-statement-card full-width-card" style="display: none; margin-top: 1.5rem;">
             <div class="statement-header">
-              <h2 id="forged-title">Synthesized Problem</h2>
-              <span class="diff-badge diff-7" id="forged-diff">Difficulty: 7/10</span>
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                  <h2 id="forged-title">Synthesized Problem</h2>
+                  <span class="diff-badge diff-7" id="forged-diff">Difficulty: 7</span>
+                </div>
+                <div class="statement-limits-bar" id="forged-limits-bar">
+                  <span class="limit-item">⏱️ Time Limit: <b id="forged-time-limit">2.0s</b></span>
+                  <span style="color: var(--border-color); opacity: 0.6;">•</span>
+                  <span class="limit-item">💾 Memory Limit: <b id="forged-memory-limit">1024 MB</b></span>
+                </div>
+              </div>
             </div>
             <div class="statement-body" id="forged-body"></div>
           </div>
