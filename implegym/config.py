@@ -49,9 +49,14 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent,
         description="Base project directory",
     )
-    yosupo_problems_dir: Path | None = Field(
+    problems_base_dir: Path | None = Field(
         default=None,
-        description="Optional local path to yosupo06/library-checker-problems clone",
+        alias="yosupo_problems_dir",
+        description="Optional local path to problem repository clone",
+    )
+    problems_repo_url: str = Field(
+        default="https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git",
+        description="Git repository URL for problems base",
     )
     data_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent / "data",

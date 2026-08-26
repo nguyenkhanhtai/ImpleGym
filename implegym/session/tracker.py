@@ -268,9 +268,9 @@ class SessionTracker:
 
         if not has_disk_tests:
             try:
-                from implegym.problems.yosupo_syncer import YosupoSyncer
+                from implegym.problems.syncer import ProblemSyncer
 
-                syncer = YosupoSyncer(self.session)
+                syncer = ProblemSyncer(self.session)
                 synced_data = await syncer.sync_problem(problem.slug)
                 if synced_data:
                     if synced_data.get("testcases_dir"):

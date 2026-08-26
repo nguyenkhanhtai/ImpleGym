@@ -179,8 +179,8 @@ function renderProblemTable(problems) {
     tr.innerHTML = `
       <td>
         <select class="diff-select ${diffClass}" onchange="changeProblemDifficulty('${p.slug}', this.value)" title="Click to manually update difficulty">
-          ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            .map((d) => `<option value="${d}" ${d === p.difficulty ? "selected" : ""}>${d}/10</option>`)
+          ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            .map((d) => `<option value="${d}" ${d === p.difficulty ? "selected" : ""}>${d} (${d * 5}m)</option>`)
             .join("")}
         </select>
       </td>
@@ -735,8 +735,8 @@ async function loadHistory() {
 
 // Gaussian Sampler Modal & Trigger
 function initEventListeners() {
-  // Sync Yosupo Repo Button
-  const syncBtn = document.getElementById("btn-sync-yosupo");
+  // Sync Problems Repo Button
+  const syncBtn = document.getElementById("btn-sync-problems") || document.getElementById("btn-sync-yosupo");
   if (syncBtn) {
     syncBtn.addEventListener("click", () => {
       openSyncProgressModal(() => {

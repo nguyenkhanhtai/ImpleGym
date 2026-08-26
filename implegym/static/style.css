@@ -281,7 +281,7 @@ select:focus {
 .diff-1, .diff-2, .diff-3 { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
 .diff-4, .diff-5, .diff-6 { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 .diff-7, .diff-8 { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
-.diff-9, .diff-10 { background-color: rgba(168, 85, 247, 0.2); color: #c084fc; }
+.diff-9, .diff-10, .diff-11, .diff-12 { background-color: rgba(168, 85, 247, 0.2); color: #c084fc; }
 
 .tag-pill {
   display: inline-block;
@@ -578,6 +578,83 @@ select:focus {
   outline: none;
   line-height: 1.6;
   tab-size: 4;
+}
+
+/* Workout Outcome Summary Card */
+.workout-outcome-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 20px rgba(52, 211, 153, 0.15);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  margin-top: 1rem;
+  animation: outcomeFadeIn 0.3s ease-out forwards;
+}
+
+@keyframes outcomeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.outcome-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.outcome-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.outcome-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  display: inline-block;
+  animation: bounceTrophy 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes bounceTrophy {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-3px) scale(1.08); }
+}
+
+.outcome-table-wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+
+.outcome-table th {
+  background: rgba(30, 41, 59, 0.8);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.outcome-table td {
+  padding: 0.75rem 0.85rem;
+  vertical-align: middle;
+  font-size: 0.85rem;
+  border-bottom: none;
+  white-space: nowrap;
 }
 
 /* Verdict Container */

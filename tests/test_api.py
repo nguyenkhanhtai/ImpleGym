@@ -405,7 +405,7 @@ async def test_contest_exact_number_of_chosen_problems(
 
 
 @pytest.mark.asyncio
-async def test_sync_yosupo_api_endpoints(async_client: AsyncClient) -> None:
+async def test_sync_problems_api_endpoints(async_client: AsyncClient) -> None:
     """Test sync status, background start, and cancel endpoints."""
     # 1. Get initial sync status
     status_res = await async_client.get("/api/problems/sync/status")

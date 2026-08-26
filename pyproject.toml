@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "implegym"
 version = "0.1.0"
-description = "A competitive programming implementation training gym based on Yosupo Library Checker"
+description = "A competitive programming implementation training gym with automated problem synchronization"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [

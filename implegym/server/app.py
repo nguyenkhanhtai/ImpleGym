@@ -160,9 +160,9 @@ async def _run_background_sync(force: bool = False, max_tests: int | None = None
     """Execute problem synchronization in background using an isolated session scope."""
     try:
         async with session_scope() as session:
-            from implegym.problems.yosupo_syncer import YosupoSyncer
+            from implegym.problems.syncer import ProblemSyncer
 
-            syncer = YosupoSyncer(session)
+            syncer = ProblemSyncer(session)
             await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
     except Exception as ex:
         from implegym.problems.sync_manager import sync_progress_tracker
@@ -171,7 +171,7 @@ async def _run_background_sync(force: bool = False, max_tests: int | None = None
 
 
 @app.post("/api/problems/sync")
-async def sync_yosupo_problems(
+async def sync_problems(
     background: bool = Query(True, description="Run synchronization in background"),
     force: bool = Query(False, description="Force re-generation of all test cases"),
     max_tests: int | None = Query(
@@ -179,9 +179,9 @@ async def sync_yosupo_problems(
     ),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
-    """Trigger synchronization from official yosupo06/library-checker-problems repository."""
+    """Trigger synchronization from official problems repository."""
     from implegym.problems.sync_manager import sync_progress_tracker
-    from implegym.problems.yosupo_syncer import YosupoSyncer
+    from implegym.problems.syncer import ProblemSyncer
 
     state = sync_progress_tracker.get_state()
     if state.is_running:
@@ -199,14 +199,14 @@ async def sync_yosupo_problems(
             "progress": sync_progress_tracker.get_state().model_dump(),
         }
 
-    syncer = YosupoSyncer(db)
+    syncer = ProblemSyncer(db)
     count = await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
     return {"status": "ok", "synced_count": count}
 
 
 @app.get("/api/problems/sync/status")
 async def get_sync_status() -> dict[str, Any]:
-    """Get the current real-time status of the Yosupo synchronization job."""
+    """Get the current real-time status of the problem synchronization job."""
     from implegym.problems.sync_manager import sync_progress_tracker
 
     return sync_progress_tracker.get_state().model_dump()

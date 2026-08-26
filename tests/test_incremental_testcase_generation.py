@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from implegym.problems.yosupo_syncer import YosupoSyncer
+from implegym.problems.syncer import ProblemSyncer
 
 
 def test_incremental_testcase_generation_lifecycle(tmp_path: Path) -> None:
@@ -68,7 +68,7 @@ int main() {
 
     target_disk_dir = tmp_path / "testcases" / "mock_problem"
 
-    syncer = YosupoSyncer(MagicMock())
+    syncer = ProblemSyncer(MagicMock())
 
     # First run: generates test files onto disk
     tests_1 = syncer._generate_testcases_from_info_toml(
@@ -174,7 +174,7 @@ int main() {
     rogue_2.write_text("rogue data", encoding="utf-8")
     sample_f.write_text("sample data", encoding="utf-8")
 
-    syncer = YosupoSyncer(MagicMock())
+    syncer = ProblemSyncer(MagicMock())
     syncer._generate_testcases_from_info_toml(
         problem_dir=prob_dir,
         params={},

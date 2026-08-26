@@ -5,15 +5,15 @@ from pathlib import Path
 import pytest
 
 from implegym.judge.runner import JudgeRunner
-from implegym.problems.yosupo_syncer import YosupoSyncer
+from implegym.problems.syncer import ProblemSyncer
 
 
-class TestYosupoTestcaseGeneration:
+class TestProblemTestcaseGeneration:
     """Test suite for info.toml-driven testcase generation and validation."""
 
     def test_params_header_generation(self, tmp_path: Path) -> None:
         """Verify that _generate_params_header writes accurate C++ macro constants."""
-        syncer = YosupoSyncer(None)  # type: ignore
+        syncer = ProblemSyncer(None)  # type: ignore
         params = {
             "MAX_N": 500_000,
             "MAX_Q": 500_000,
@@ -29,12 +29,12 @@ class TestYosupoTestcaseGeneration:
         assert "MAX_A" in content and "1000000000" in content
 
     def test_info_toml_testcase_generation_for_static_range_sum(self) -> None:
-        """Verify that YosupoSyncer extracts and generates testcases from info.toml for static_range_sum."""
+        """Verify that ProblemSyncer extracts and generates testcases from info.toml for static_range_sum."""
         prob_dir = Path("data") / "yosupo_repo" / "data_structure" / "static_range_sum"
         if not prob_dir.exists():
             pytest.skip("Local yosupo repository not present in data/yosupo_repo")
 
-        syncer = YosupoSyncer(None)  # type: ignore
+        syncer = ProblemSyncer(None)  # type: ignore
         params = {"MAX_N": 500_000, "MAX_Q": 500_000, "MAX_A": 1_000_000_000}
 
         testcases = syncer._generate_testcases_from_info_toml(prob_dir, params)

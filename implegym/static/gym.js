@@ -249,7 +249,7 @@ function setProblemPreview(prob) {
 
   // Populate metadata
   document.getElementById("stmt-title").textContent = prob.title;
-  document.getElementById("stmt-category").textContent = `${prob.category} (${prob.difficulty}/10)`;
+  document.getElementById("stmt-category").textContent = `${prob.category} (Diff: ${prob.difficulty})`;
   document.getElementById("current-problem-title").textContent = prob.title;
   document.getElementById("current-problem-diff").textContent = prob.difficulty;
 
@@ -429,6 +429,13 @@ function setWorkoutSession(session) {
   // Start / Restore Live Stopwatch
   const totalDur = session.total_duration_seconds !== undefined ? session.total_duration_seconds : null;
   startStopwatch(session.started_at, session.finished_at, session.status, totalDur);
+
+  const outcomeCard = document.getElementById("workout-outcome-card");
+  if (session.status === "ac") {
+    renderWorkoutOutcome(session, null);
+  } else if (outcomeCard) {
+    outcomeCard.style.display = "none";
+  }
 }
 
 // Render Contest Header & Problem Switcher Tabs
@@ -480,7 +487,7 @@ function renderContestTabs(session) {
     tab.innerHTML = `
       <span class="tab-letter">${letter}.</span>
       <span class="tab-title">${p.title}</span>
-      <span class="diff-badge diff-${p.difficulty}" style="font-size: 0.72rem; padding: 0.1rem 0.35rem;">${p.difficulty}/10</span>
+      <span class="diff-badge diff-${p.difficulty}" style="font-size: 0.72rem; padding: 0.1rem 0.35rem;">Diff: ${p.difficulty}</span>
       <span class="tab-status-icon">${isSolved ? "✓" : "⏳"}</span>
     `;
 
@@ -680,6 +687,36 @@ function initGymListeners() {
       aiDrawer.style.display = "none";
     });
   }
+  // Next Random Problem from Outcome Card
+  const nextOutcomeBtn = document.getElementById("btn-outcome-next");
+  if (nextOutcomeBtn) {
+    nextOutcomeBtn.addEventListener("click", async () => {
+      try {
+        const mean = currentProblem ? currentProblem.difficulty : 5.0;
+        const res = await fetch("/api/sampler/sample", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mean_difficulty: mean,
+            std_dev: 1.5,
+            skewness: "balanced",
+            exclude_solved: true,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to sample next problem");
+        const nextProb = await res.json();
+        window.location.href = `/gym?slug=${encodeURIComponent(nextProb.slug)}`;
+      } catch (err) {
+        alert("Error fetching next problem: " + err.message);
+      }
+    });
+  }
+
+  // AI Refine from Outcome Card
+  const outcomeRefineBtn = document.getElementById("btn-outcome-refine");
+  if (outcomeRefineBtn) {
+    outcomeRefineBtn.addEventListener("click", refineLatestSubmission);
+  }
 }
 
 // Resume Stopwatch after judging, adjusting start time so judging latency is not penalized
@@ -757,6 +794,7 @@ async function submitSolution() {
       const endTime = activeSession.finished_at || new Date().toISOString();
       const totalDur = activeSession.total_duration_seconds;
       startStopwatch(startTime, endTime, "ac", totalDur);
+      renderWorkoutOutcome(activeSession, data.submission);
     } else if (data.submission && data.submission.verdict === "AC") {
       // Individual problem solved in contest session
       const progressBadge = document.getElementById("contest-progress-badge");
@@ -765,10 +803,13 @@ async function submitSolution() {
       }
       const judgingDurSec = (Date.now() - judgingStartMs) / 1000;
       resumeStopwatchAfterJudging(judgingDurSec);
+      renderWorkoutOutcome(activeSession, data.submission);
     } else {
       // Not AC (WA / TLE / RE) -> Resume timer without penalizing for judging time
       const judgingDurSec = (Date.now() - judgingStartMs) / 1000;
       resumeStopwatchAfterJudging(judgingDurSec);
+      const outcomeCard = document.getElementById("workout-outcome-card");
+      if (outcomeCard) outcomeCard.style.display = "none";
     }
   } catch (err) {
     alert("Submission error: " + err.message);
@@ -811,6 +852,82 @@ function renderVerdict(sub) {
   } else {
     errLog.style.display = "none";
   }
+}
+
+// Render Workout Outcome Summary Card when problem/contest is AC
+function renderWorkoutOutcome(session, sub) {
+  const card = document.getElementById("workout-outcome-card");
+  if (!card) return;
+
+  const prob = (session && session.problem) ? session.problem : currentProblem;
+  if (!prob) return;
+
+  const targetSec = (session && session.total_target_time_seconds)
+    ? session.total_target_time_seconds
+    : (prob.difficulty * 5 * 60);
+  const targetMin = Math.round(targetSec / 60);
+
+  let durationSec = 0;
+  if (session && session.total_duration_seconds !== null && session.total_duration_seconds !== undefined) {
+    durationSec = session.total_duration_seconds;
+  } else if (session && session.started_at) {
+    const endMs = session.finished_at ? parseUtcDate(session.finished_at) : Date.now();
+    durationSec = Math.max(0, (endMs - parseUtcDate(session.started_at)) / 1000);
+  }
+
+  const isSuccessful = durationSec <= targetSec;
+  const outcomeBadge = isSuccessful
+    ? `<span class="verdict-badge ac" title="Solved in under ${targetMin} minutes">🏆 SUCCESS</span>`
+    : `<span class="verdict-badge wa" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;" title="Solved but took longer than ${targetMin} minutes">⏱️ OVERTIME</span>`;
+
+  const statusBadge = document.getElementById("outcome-status-badge");
+  if (statusBadge) {
+    statusBadge.innerHTML = isSuccessful ? "🏆 SUCCESS" : "⏱️ OVERTIME";
+    statusBadge.className = isSuccessful ? "verdict-badge ac" : "verdict-badge wa";
+    if (!isSuccessful) {
+      statusBadge.style.background = "rgba(245, 158, 11, 0.2)";
+      statusBadge.style.color = "#fbbf24";
+    } else {
+      statusBadge.style.background = "";
+      statusBadge.style.color = "";
+    }
+  }
+
+  const heading = document.getElementById("outcome-heading");
+  const subtext = document.getElementById("outcome-subtext");
+  if (heading) {
+    heading.textContent = isSuccessful ? "🏆 Workout Completed Successfully!" : "⏱️ Workout Completed (Overtime)";
+  }
+  if (subtext) {
+    subtext.textContent = isSuccessful
+      ? `Completed in ${formatDuration(durationSec)}, beating the ${targetMin}m target time benchmark!`
+      : `Completed in ${formatDuration(durationSec)}, exceeding the ${targetMin}m target time benchmark.`;
+  }
+
+  const tbody = document.getElementById("outcome-table-body");
+  if (tbody) {
+    const subCount = (session && session.submission_count) ? session.submission_count : (session && session.submissions ? session.submissions.length : 1);
+    const maxTime = sub ? `${sub.exec_time_ms || 0} ms` : "-";
+    const mem = sub ? `${sub.memory_kb || 0} KB` : "-";
+
+    tbody.innerHTML = `
+      <tr>
+        <td>
+          <div style="font-weight: 700; color: #818cf8;">${prob.title}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">${prob.category}</div>
+        </td>
+        <td><span class="diff-badge diff-${prob.difficulty}">Diff: ${prob.difficulty}</span></td>
+        <td><span class="tag-pill" style="color: #38bdf8; font-weight: 600;">🎯 ${targetMin} min</span></td>
+        <td><b style="color: ${isSuccessful ? 'var(--accent-success)' : '#fbbf24'}; font-size: 1.05rem;">${formatDuration(durationSec)}</b></td>
+        <td>${outcomeBadge}</td>
+        <td><span class="badge" style="background: rgba(255,255,255,0.08); padding: 0.2rem 0.6rem; border-radius: 0.4rem;">${subCount}</span></td>
+        <td><b>${maxTime}</b> <span style="font-size: 0.75rem; color: var(--text-muted);">(${mem})</span></td>
+      </tr>
+    `;
+  }
+
+  card.style.display = "block";
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // Refine with AI

@@ -30,7 +30,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@db:5432/implegym
       PORT: 8000
       HOST: 0.0.0.0
-      AUTO_SYNC_YOSUPO: ${AUTO_SYNC_YOSUPO:-true}
+      AUTO_SYNC_PROBLEMS: ${AUTO_SYNC_PROBLEMS:-true}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
     ports:

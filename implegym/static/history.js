@@ -43,7 +43,7 @@ async function loadHistory() {
       }
 
       const problems = s.problems && s.problems.length > 0 ? s.problems : [s.problem];
-      const probSummary = problems.map((p, i) => `${String.fromCharCode(65 + i)}. ${p.title} (${p.difficulty}/10)`).join(", ");
+      const probSummary = problems.map((p, i) => `${String.fromCharCode(65 + i)}. ${p.title} (Diff: ${p.difficulty})`).join(", ");
       const contestName = s.name || `Session #${s.id}`;
 
       const hasSubmissions = s.submissions && s.submissions.length > 0;

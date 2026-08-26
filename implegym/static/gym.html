@@ -19,7 +19,7 @@
       <div class="nav-brand">
         <span class="brand-logo">⚡</span>
         <span class="brand-title">ImpleGym</span>
-        <span class="brand-badge">Yosupo Edition</span>
+        <span class="brand-badge">Problems Base</span>
       </div>
       <nav class="nav-links">
         <a href="/explorer" class="nav-tab">🧭 Explorer</a>
@@ -73,7 +73,7 @@
               </div>
               <div class="hud-meta" id="stopwatch-meta">
                 <span>Problem: <b id="current-problem-title">None</b></span>
-                <span class="diff-badge diff-5" id="current-problem-diff-badge">Difficulty: <b id="current-problem-diff">-</b>/10</span>
+                <span class="diff-badge diff-5" id="current-problem-diff-badge">Difficulty: <b id="current-problem-diff">-</b></span>
                 <span class="target-badge" id="current-target-time" title="Success condition: AC in under Difficulty * 5 minutes">🎯 Target: <b>-</b></span>
               </div>
             </div>
@@ -149,6 +149,47 @@ int main() {
     
     return 0;
 }"></textarea>
+              </div>
+            </div>
+
+            <!-- Workout Outcome Summary Card (Visible upon AC solve) -->
+            <div class="workout-outcome-card" id="workout-outcome-card" style="display: none;">
+              <div class="outcome-card-header">
+                <div class="outcome-title-group">
+                  <span class="outcome-icon" id="outcome-icon">🏆</span>
+                  <div>
+                    <h3 id="outcome-heading" style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #fff;">Workout Completed!</h3>
+                    <p id="outcome-subtext" style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);">Solved with Accepted verdict.</p>
+                  </div>
+                </div>
+                <div id="outcome-badge-container">
+                  <span id="outcome-status-badge" class="verdict-badge ac">🏆 SUCCESS</span>
+                </div>
+              </div>
+
+              <div class="outcome-table-wrapper" style="margin-top: 1rem; overflow-x: auto;">
+                <table class="table outcome-table" style="width: 100%; margin-bottom: 0;">
+                  <thead>
+                    <tr>
+                      <th>Problem</th>
+                      <th>Difficulty</th>
+                      <th>Target Time</th>
+                      <th>Actual Time</th>
+                      <th>Benchmark Outcome</th>
+                      <th>Submissions</th>
+                      <th>Max Exec Time</th>
+                    </tr>
+                  </thead>
+                  <tbody id="outcome-table-body">
+                    <!-- Dynamic Outcome Rows -->
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="outcome-actions-bar" style="margin-top: 1.1rem; display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: flex-end; align-items: center;">
+                <button id="btn-outcome-next" class="btn btn-primary btn-sm">⚡ Next Random Problem</button>
+                <button id="btn-outcome-refine" class="btn btn-ai btn-sm">✨ Refine with AI</button>
+                <a href="/history" class="btn btn-secondary btn-sm">📜 View History</a>
               </div>
             </div>
 

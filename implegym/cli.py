@@ -69,8 +69,10 @@ def scan(
     asyncio.run(_scan())
 
 
-@app.command()
-def sync_yosupo(
+@app.command("sync")
+@app.command("sync-problems")
+@app.command("sync-yosupo")
+def sync_problems(
     repo_dir: Path | None = typer.Option(
         None, "--repo-dir", "-d", help="Custom local repo path to clone or sync into"
     ),
@@ -87,7 +89,7 @@ def sync_yosupo(
         help="Optional cap on generated test cases per problem (defaults to full count in info.toml)",
     ),
 ) -> None:
-    """Clone or pull official yosupo06/library-checker-problems and sync all problems to PostgreSQL."""
+    """Clone or pull official problems repository and sync all problems to database."""
     from typing import Any
 
     from rich.progress import (
@@ -104,9 +106,9 @@ def sync_yosupo(
     async def _sync() -> None:
         await init_db()
         async with session_scope() as session:
-            from implegym.problems.yosupo_syncer import YosupoSyncer
+            from implegym.problems.syncer import ProblemSyncer
 
-            syncer = YosupoSyncer(session, repo_dir=repo_dir)
+            syncer = ProblemSyncer(session, repo_dir=repo_dir)
 
             with Progress(
                 SpinnerColumn(),
@@ -164,7 +166,7 @@ def sync_yosupo(
                 )
 
             console.print(
-                f"[bold green]✨ Successfully synchronized {count} Yosupo problems into database![/bold green]"
+                f"[bold green]✨ Successfully synchronized {count} problems into database![/bold green]"
             )
 
     asyncio.run(_sync())

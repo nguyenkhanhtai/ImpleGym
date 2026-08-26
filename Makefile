@@ -4,7 +4,7 @@ help:
 	@echo "ImpleGym Developer Commands:"
 	@echo "  make install      Install package in editable mode with dev dependencies"
 	@echo "  make dev          Start local development server"
-	@echo "  make sync-yosupo  Clone/pull and sync all Yosupo problems into PostgreSQL"
+	@echo "  make sync-problems Clone/pull and sync problems into database"
 	@echo "  make test         Run automated pytest test suite"
 	@echo "  make test-prop    Run Hypothesis property-based tests"
 	@echo "  make test-e2e     Run Playwright E2E browser tests"
@@ -18,8 +18,11 @@ help:
 install:
 	pip install -e ".[dev]"
 
+sync-problems:
+	python -m implegym.cli sync-problems
+
 sync-yosupo:
-	python -m implegym.cli sync-yosupo
+	python -m implegym.cli sync-problems
 
 dev:
 	python -m implegym.cli serve --reload

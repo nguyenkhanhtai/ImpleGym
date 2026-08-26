@@ -1,6 +1,6 @@
 # 🏋️‍♂️ ImpleGym
 
-> **Competitive Programming Implementation Training Gym** based on the official [Yosupo Library Checker](https://github.com/yosupo06/library-checker-problems) problem repository.
+> **Competitive Programming Implementation Training Gym** with automated problem synchronization from the [ImpleGym Problems Base](https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git).
 
 ImpleGym helps competitive programmers master standard data structures, algorithms, and implementation speed through Gaussian/Skew-Normal sampled problem workouts, real-time stopwatch contests, multi-compiler local judging, and AI-powered code reviews.
 
@@ -11,11 +11,11 @@ ImpleGym helps competitive programmers master standard data structures, algorith
 - **⚡ Multi-Page Web UI**:
   - **Workout / Practice Mode**: Real-time stopwatch, target time benchmarks, interactive problem sampler.
   - **Dedicated Contest Mode**: Timed multi-problem contests (1, 2, 3, 5, or 7 problems) with instant switching and AC tracking.
-  - **Problem Explorer**: Browse, search, filter by category/tags/difficulty, with live Yosupo sync progress modal.
+  - **Problem Explorer**: Browse, search, filter by category/tags/difficulty, with live problem sync progress modal.
   - **AI Problem Forge**: Synthesize novel composite competitive programming problems with GPT-4o.
   - **History & Analytics**: Track submission records, AC rates, code diffs, and execution times.
-- **🔄 Smart Yosupo Synchronization**:
-  - Automatically clones and syncs official Library Checker problems.
+- **🔄 Smart Problem Synchronization**:
+  - Automatically clones and syncs official Problems Base repository.
   - **Live Progress Tracking**: SSE streaming in Web UI and multi-column interactive progress bar (`rich`) in CLI.
   - **Smart Testcase Caching**: Skips re-compiling existing problem testcases to sync in seconds.
 - **⚖️ Local Multi-Compiler Judge**:
@@ -105,11 +105,11 @@ ImpleGym provides a rich CLI powered by Typer and Rich:
 # Start the web server and API
 uv run implegym serve
 
-# Sync official Library Checker problems (with interactive Rich progress bar)
-uv run implegym sync-yosupo
+# Sync official problems base repository (with interactive Rich progress bar)
+uv run implegym sync-problems
 
 # Force regenerate all test cases from scratch
-uv run implegym sync-yosupo --force
+uv run implegym sync-problems --force
 
 # List indexed problems in terminal
 uv run implegym list-probs

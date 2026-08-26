@@ -1136,6 +1136,96 @@ ImpleGym/
 
 ---
 
+#### User Prompt 81
+> "Tooi thay trong code cua yosupo hien tai chi co example in ma khong co example out a, toi muon ban su dung code correct cua ho de generate ra answer cho cac sample case nhe" / "remember to only generate samples in syncer, and only generate full tests when submitting"
+
+#### Agent Actions
+- **Root Cause Analysis**:
+  - The official `yosupo06/library-checker-problems` repository only tracks `gen/example_*.in` inputs without pre-computed `.out` files.
+  - Previous sample generation failed because `_generate_sample_output` attempted to compile `sol/correct.cpp` directly inside `data/yosupo_repo/` which is read-only (`nobody:nogroup`), and lacked proper header generation (`params.h`) and include directories (`common/`).
+- **Isolated Build Sandbox & Sample Output Generation**:
+  1. **Build Sandbox**: Implemented `_compile_cpp_executable()` in [`implegym/problems/yosupo_syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py) to compile solutions and generators in an isolated temporary directory (`tempfile.TemporaryDirectory()`), generating `params.h` and passing `-I common -I <shadow_dir>` with `-std=c++17` (falling back to `-std=c++20`/`-std=c++23`).
+  2. **Fast Syncer Sample Generation**:
+     - `_extract_sample_cases()` discovers all sample inputs, compiles `sol/correct.cpp` once, and executes it on each sample input with problem-specific timeouts to populate `output`.
+     - `parse_problem_directory()` defaults to `generate_tests=False`, ensuring `sync_all_problems()` / `implegym sync-yosupo` ONLY generates lightweight sample cases (`00_sample_*.in/out`), keeping syncer fast.
+  3. **Lazy Full Test Generation on Submit**:
+     - Full test generator suites (`_generate_testcases_from_info_toml()`) are generated on-demand when submitting code for a problem.
+  4. **Multi-Environment Python Runner**:
+     - Updated `JudgeRunner` in [`implegym/judge/runner.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/judge/runner.py) to use `sys.executable` for Python solution evaluation.
+  5. **Full Re-Sync & Verification**:
+     - Ran `implegym sync-yosupo`, successfully synchronizing all **260/260 problems** with **100% complete sample outputs**.
+- **Verification**:
+  - `65/65 tests passed in 22.72s`.
+  - Verified 260/260 problems in `data/implegym.db` have non-empty sample outputs.
+
+#### User Prompt 82
+> "nos laf bang outcome trong gym khi ma chay ac mot bai a" / "bang o trong muc 1 a" (Render dedicated Workout Outcome Summary Card & Table when AC in Gym)
+
+#### Agent Actions
+- **Workout Outcome Summary Card & Table in Gym**:
+  1. **UI Component**: Added `#workout-outcome-card` in [`implegym/static/gym.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/gym.html) with a celebration header, `🏆 SUCCESS` / `⏱️ OVERTIME` outcome status badge, benchmark comparison table, and quick actions.
+  2. **Detailed Outcome Table**:
+     - Displays Problem Title & Category, Implementation Difficulty, Target Time ($\text{Difficulty} \times 5\text{m}$), Actual Stopwatch Duration, Benchmark Outcome, Total Submissions Count, and Max Execution Time & Memory.
+  3. **Rich Styling**:
+     - Added glowing glassmorphism styling, trophy bounce animation, and dark table theme in [`implegym/static/style.css`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/style.css).
+  4. **Interactive Lifecycle**:
+     - Implemented `renderWorkoutOutcome()` in [`implegym/static/gym.js`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/gym.js). Automatically triggers and scrolls smoothly when AC is achieved or when resuming an AC session.
+     - Added event listeners for `⚡ Next Random Problem` (sampler integration), `✨ Refine with AI`, and `📜 View History`.
+- **Verification**:
+#### User Prompt 83
+> "now, I have made myself my own yosupo repo at the https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git, now I don't want it to be named after yosupo or yosupo sync anymore, I want it to be problem-syncer only, anything about yosupo should be renamed"
+
+#### Agent Actions
+- **Complete Rebranding from Yosupo to ProblemSyncer / Problems Base**:
+  1. **Core Problem Syncer Engine**:
+     - Created [`implegym/problems/syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/syncer.py) implementing `ProblemSyncer` with `OFFICIAL_REPO_URL = "https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git"`.
+     - Added backward compatibility shim in [`implegym/problems/yosupo_syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/yosupo_syncer.py) exporting `ProblemSyncer` and `YosupoSyncer`.
+  2. **Configuration & Settings**:
+     - Updated [`implegym/config.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/config.py) with `problems_base_dir`, `problems_repo_url`, and alias for `yosupo_problems_dir`.
+  3. **Session Tracker & Server API**:
+     - Updated [`implegym/session/tracker.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/session/tracker.py) and [`implegym/server/app.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/server/app.py) to import and use `ProblemSyncer` and `sync_problems`.
+  4. **CLI & Automation**:
+     - Updated [`implegym/cli.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/cli.py) to add `sync-problems` (with `sync` and legacy `sync-yosupo` aliases).
+     - Updated [`entrypoint.sh`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/entrypoint.sh) (`AUTO_SYNC_PROBLEMS`), [`docker-compose.yml`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/docker-compose.yml), and [`Makefile`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/Makefile) (`make sync-problems`).
+  5. **Frontend UI & Branding**:
+     - Updated [`explorer.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/explorer.html), [`index.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/index.html), [`gym.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/gym.html), [`history.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/history.html), and [`forge.html`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/forge.html): brand badge changed to "Problems Base", sync buttons changed to "🔄 Sync Problems Base", and modal headers updated.
+     - Updated [`explorer.js`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/explorer.js) and [`app.js`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/static/app.js) event bindings.
+  6. **Automated Test Suite**:
+     - Renamed test files to [`tests/test_problem_syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/tests/test_problem_syncer.py) and [`tests/test_problem_testcase_generation.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/tests/test_problem_testcase_generation.py).
+     - Updated [`tests/test_api.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/tests/test_api.py) and [`tests/test_incremental_testcase_generation.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/tests/test_incremental_testcase_generation.py).
+#### User Prompt 84
+> "banj co the tu danh gia do kho cai dat cua cac problem giup toi duoc khong nhi?, toi muon la bay gio nhe, trong thu muc cua toi a, o trong info.toml se co them mot tham so la difficulty (ve implementation) de co the ghi vao" (Evaluate CP implementation difficulty 1..10 and write difficulty parameter into info.toml of all problems)
+
+#### Agent Actions
+- **Implementation Difficulty Evaluator & `info.toml` Auto-Writer**:
+  1. **Evaluator Module**:
+     - Built [`implegym/problems/difficulty_evaluator.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/difficulty_evaluator.py) with 160+ curated competitive programming problem ratings and AST/heuristic fallbacks (analyzing code line count, struct/class definitions, algorithmic complexity keywords, and category baselines).
+     - Implemented `write_difficulty_to_info_toml()`: Inserts `difficulty = <rating>` right after `timelimit` in `info.toml` while preserving formatting and comments.
+     - Implemented `batch_update_repo_info_tomls()`: Scans all problem folders in the repository and updates each `info.toml`.
+  2. **Syncer Integration**:
+     - Updated `parse_problem_directory()` and `_calculate_difficulty()` in [`implegym/problems/syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/syncer.py) to read `difficulty` directly from `info.toml` first before falling back to heuristics.
+  3. **CLI Command**:
+     - Added `implegym evaluate-difficulties` (alias `write-repo-difficulties`) in [`implegym/cli.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/cli.py).
+  4. **Batch Execution & Verification**:
+ #### User Prompt 85
+> "no, you don't calculate the score directly, you use the difficulty score from info.toml, if there was no difficulty then use the default value. Your only mission is to extract the difficulty from info.toml"
+
+#### Agent Actions
+- **Strict `info.toml` Difficulty Extraction Only**:
+  1. **Clean Syncer Implementation ([`implegym/problems/syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/problems/syncer.py))**:
+     - Removed all heuristic scoring, code line counting, AST checks, and external calculation modules.
+     - `parse_problem_directory()` and `_calculate_difficulty()` now strictly extract the `difficulty` field directly from `info.toml`.
+     - If `difficulty` is missing or invalid in `info.toml`, it falls back cleanly to the default value (`CATEGORY_DIFFICULTY_BASELINE` or default `5`).
+  2. **Cleanup**:
+     - Removed `implegym/problems/difficulty_evaluator.py`.
+     - Cleaned up CLI commands in [`implegym/cli.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/implegym/cli.py).
+  3. **Automated Unit Tests**:
+     - Updated [`tests/test_problem_syncer.py`](file:///home/kevin/Documents/Programming/DSA/ImpleGym/tests/test_problem_syncer.py) with `test_info_toml_difficulty_extraction` ensuring direct reading from `info.toml` and baseline fallback.
+- **Verification**:
+  - `66/66 tests passed in 28.00s`.
+
+---
+
 ## 4. Execution Tracker & Results
 
 | Step | Component | Status | Verification & Notes |
@@ -1143,27 +1233,16 @@ ImpleGym/
 | 1 | `pyproject.toml`, `config.py`, `.env.example` | Completed | Modern packaging & dependency definitions |
 | 2 | PostgreSQL & SQLite Database Schema (`db/`, `alembic/`) | Completed | Alembic migrations: `e81833419e8c` -> `a1b2c3d4e5f6` -> `b2c3d4e5f6a7` |
 | 3 | On-Disk Testcase Storage & Incremental Syncer (`problems/`) | Completed | Tests stored in `data/testcases/<slug>/`, incremental caching, orphan purging |
-| 4 | Multi-Compiler Streaming Judge Runner (`judge/`) | Completed | Kernel file streaming (`stdin=open(file, 'rb')`), C++17/20/23, Clang, Python |
+| 4 | Multi-Compiler Streaming Judge Runner (`judge/`) | Completed | Kernel file streaming (`stdin=open(file, 'rb')`), C++17/20/23, Clang, Python (`sys.executable`) |
 | 5 | Session Tracker & Stopwatch Engine (`session/`) | Completed | Fair timer pause during judging, on-demand test generation, AC stopwatch stop |
 | 6 | Gaussian & Skew-Normal Sampler (`sampler/`) | Completed | Bounded $\mathcal{N}(\mu, \sigma^2)$ and Azzalini skew-normal sampling |
 | 7 | AI Refiner & Problem Generator (`ai/`) | Completed | OpenAI GPT-4o CP code refinement & composite problem generator |
 | 8 | FastAPI Server & Multi-Page Web UI (`server/`, `static/`) | Completed | 100% offline local vendor KaTeX assets (< 10ms page load) |
-| 9 | Automated Test Suites (`tests/`) | Completed | 63 passed tests (Unit, Integration, Benchmarks, Differential) |
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+| 9 | Automated Test Suites (`tests/`) | Completed | 66 passed tests (Unit, Integration, Benchmarks, Differential) |
+| 10 | Sample Output Generator & Sandboxed Build (`problems/`) | Completed | Auto-generated sample outputs from `sol/correct.cpp` for all 260 problems in DB |
+| 11 | Workout Outcome Summary Card & Table (`static/`) | Completed | Modern glassmorphic AC outcome celebration table, benchmark comparison, next problem flow |
+| 12 | Problem Syncer Refactor & Custom Repo Integration (`problems/`, `cli.py`, `ui`) | Completed | Refactored `YosupoSyncer` to `ProblemSyncer` configured to `nguyenkhanhtai/Implegym-Problems-Base.git` |
+| 13 | Direct `info.toml` Difficulty Extraction (`problems/syncer.py`) | Completed | Strictly extracts `difficulty` from `info.toml` with default baseline fallback |
 
 
 

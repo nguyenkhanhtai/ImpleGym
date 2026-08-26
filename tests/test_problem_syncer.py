@@ -1,4 +1,4 @@
-"""Tests for YosupoSyncer module."""
+"""Tests for ProblemSyncer module."""
 
 from pathlib import Path
 
@@ -6,31 +6,26 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from implegym.problems.catalog import ProblemCatalogService
-from implegym.problems.yosupo_syncer import YosupoSyncer
+from implegym.problems.syncer import ProblemSyncer
 
 
 @pytest.mark.asyncio
-async def test_yosupo_syncer_difficulty_calculation(db_session: AsyncSession) -> None:
-    """Test difficulty assignment heuristics for known and category baselines."""
-    syncer = YosupoSyncer(db_session)
+async def test_syncer_difficulty_calculation(db_session: AsyncSession) -> None:
+    """Test difficulty extraction from info.toml and default fallback."""
+    syncer = ProblemSyncer(db_session)
     from pathlib import Path
 
-    tmp_path = Path("dummy_dir")
+    tmp_path = Path("sample") / "dummy_dir"
 
-    # Known problems
+    # Fallback to category baseline when no info.toml or no difficulty in info.toml
     assert syncer._calculate_difficulty("aplusb", "sample", tmp_path) == 1
-    assert (
-        syncer._calculate_difficulty("dynamic_tree_subtree_add_subtree_sum", "tree", tmp_path) == 10
-    )
-    assert syncer._calculate_difficulty("point_add_range_sum", "datastructure", tmp_path) == 4
-
-    # Baseline heuristics
-    assert syncer._calculate_difficulty("unknown_matrix_problem", "matrix", tmp_path) == 6
-    assert syncer._calculate_difficulty("unknown_geom_problem", "geometry", tmp_path) == 7
+    assert syncer._calculate_difficulty("some_tree", "tree", tmp_path) == 6
+    assert syncer._calculate_difficulty("some_data_struct", "data_structure", tmp_path) == 5
+    assert syncer._calculate_difficulty("unknown_category_prob", "unknown_category", tmp_path) == 5
 
 
 @pytest.mark.asyncio
-async def test_yosupo_syncer_preserves_custom_difficulty(db_session: AsyncSession) -> None:
+async def test_syncer_preserves_custom_difficulty(db_session: AsyncSession) -> None:
     """Test that syncing problems preserves user-customized difficulties."""
     catalog = ProblemCatalogService(db_session)
     # 1. Update difficulty of a problem
@@ -40,7 +35,7 @@ async def test_yosupo_syncer_preserves_custom_difficulty(db_session: AsyncSessio
     assert updated.is_difficulty_customized is True
 
     # 2. Run sync_problem for aplusb
-    syncer = YosupoSyncer(db_session)
+    syncer = ProblemSyncer(db_session)
     await syncer.sync_problem("aplusb")
 
     # 3. Verify difficulty remains 8 (preserved)
@@ -101,7 +96,7 @@ async def test_parse_problem_directory_generate_tests_flag(db_session: AsyncSess
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    syncer = YosupoSyncer(db_session)
+    syncer = ProblemSyncer(db_session)
     syncer._generate_testcases_from_info_toml = MagicMock(
         return_value=[{"input": "gen\n", "output": "out\n"}]
     )
@@ -126,7 +121,7 @@ async def test_parse_problem_directory_generate_tests_flag(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_yosupo_syncer_preserves_cached_tests_without_force(
+async def test_syncer_preserves_cached_tests_without_force(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
     """Test that sync_all_problems skips expensive test generation when testcases are already cached."""
@@ -158,7 +153,7 @@ async def test_yosupo_syncer_preserves_cached_tests_without_force(
     db_session.add(prob)
     await db_session.commit()
 
-    syncer = YosupoSyncer(db_session, repo_dir=tmp_path)
+    syncer = ProblemSyncer(db_session, repo_dir=tmp_path)
     # Spy on _generate_testcases_from_info_toml
     syncer._generate_testcases_from_info_toml = MagicMock(
         return_value=[{"name": "generated_01", "input": "99 1\n", "output": "100\n"}]
@@ -180,3 +175,70 @@ async def test_yosupo_syncer_preserves_cached_tests_without_force(
     await syncer.sync_all_problems(force_regenerate_tests=True)
     # Verify testcase generator was now invoked
     assert syncer._generate_testcases_from_info_toml.called
+
+
+@pytest.mark.asyncio
+async def test_extract_sample_cases_generates_correct_output(
+    db_session: AsyncSession,
+) -> None:
+    """Verify that _extract_sample_cases runs sol/correct.cpp to produce sample outputs."""
+    prob_dir = Path("data/yosupo_repo/sample/aplusb")
+    if not prob_dir.exists():
+        pytest.skip("Local yosupo repository not present in data/yosupo_repo")
+
+    syncer = ProblemSyncer(db_session)
+    task_md = (prob_dir / "task.md").read_text(encoding="utf-8", errors="ignore")
+    sample_cases = syncer._extract_sample_cases(prob_dir, task_md)
+
+    assert len(sample_cases) >= 2
+    for sc in sample_cases:
+        assert sc["input"].strip() != ""
+        assert sc["output"].strip() != ""
+
+    # Check sample output values for aplusb
+    assert sample_cases[0]["name"] == "example_00"
+    assert sample_cases[0]["input"].strip() == "1234 5678"
+    assert sample_cases[0]["output"].strip() == "6912"
+
+    assert sample_cases[1]["name"] == "example_01"
+    assert sample_cases[1]["input"].strip() == "1000000000 1000000000"
+    assert sample_cases[1]["output"].strip() == "2000000000"
+
+
+@pytest.mark.asyncio
+async def test_info_toml_difficulty_extraction(tmp_path: Path, db_session: AsyncSession) -> None:
+    """Verify extracting difficulty directly from info.toml, and fallback when absent."""
+    prob_dir = tmp_path / "mock_tree_prob"
+    prob_dir.mkdir(parents=True)
+    info_toml = prob_dir / "info.toml"
+    task_md = prob_dir / "task.md"
+
+    # 1. info.toml without difficulty field -> falls back to category default (6 for tree)
+    info_toml.write_text(
+        """
+title = "Mock Tree Problem"
+timelimit = 3.0
+""",
+        encoding="utf-8",
+    )
+    task_md.write_text("# Mock Tree Problem Statement\nSolve the tree query.", encoding="utf-8")
+
+    syncer = ProblemSyncer(db_session)
+    parsed = syncer.parse_problem_directory("tree", prob_dir, generate_tests=False)
+    assert parsed is not None
+    assert parsed["difficulty"] == 6
+
+    # 2. info.toml with explicit difficulty = 8 -> extracts 8 directly
+    info_toml.write_text(
+        """
+title = "Mock Tree Problem"
+timelimit = 3.0
+difficulty = 8
+""",
+        encoding="utf-8",
+    )
+    parsed_2 = syncer.parse_problem_directory("tree", prob_dir, generate_tests=False)
+    assert parsed_2 is not None
+    assert parsed_2["difficulty"] == 8
+
+

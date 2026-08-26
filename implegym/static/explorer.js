@@ -39,7 +39,7 @@ function initExplorerFilters() {
   const diffLabel = document.getElementById("difficulty-label");
   const statusSelect = document.getElementById("status-select");
   const pageSizeSelect = document.getElementById("page-size-select");
-  const syncBtn = document.getElementById("btn-sync-yosupo");
+  const syncBtn = document.getElementById("btn-sync-problems") || document.getElementById("btn-sync-yosupo");
 
   if (diffSlider && diffLabel) {
     diffSlider.addEventListener("input", (e) => {
@@ -200,8 +200,8 @@ function renderProblemTable(problems) {
     tr.innerHTML = `
       <td>
         <select class="diff-select ${diffClass}" onchange="changeProblemDifficulty('${p.slug}', this.value)" title="Click to manually update difficulty" onclick="event.stopPropagation()">
-          ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            .map((d) => `<option value="${d}" ${d === p.difficulty ? "selected" : ""}>${d}/10</option>`)
+          ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            .map((d) => `<option value="${d}" ${d === p.difficulty ? "selected" : ""}>${d} (${d * 5}m)</option>`)
             .join("")}
         </select>
       </td>

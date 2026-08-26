@@ -1,6 +1,7 @@
 """Judge runner executing test cases with time and memory tracking."""
 
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,7 +65,7 @@ class JudgeRunner:
         """Run a single test case and return the verdict."""
         cmd = [str(executable_path)]
         if language == "python":
-            cmd = ["python", str(executable_path)]
+            cmd = [sys.executable, str(executable_path)]
 
         start_time = time.perf_counter()
         try:
@@ -132,7 +133,7 @@ class JudgeRunner:
         """Run a single test case streaming input directly from in_file_path and verifying against out_file_path."""
         cmd = [str(executable_path)]
         if language == "python":
-            cmd = ["python", str(executable_path)]
+            cmd = [sys.executable, str(executable_path)]
 
         start_time = time.perf_counter()
         try:
