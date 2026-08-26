@@ -17,7 +17,7 @@ class ProblemCatalogService:
         self, params: ProblemFilterParams
     ) -> tuple[list[ProblemResponseSchema], int]:
         """Query problems matching filter criteria with pagination."""
-        query = select(Problem)
+        query = select(Problem).where(func.lower(Problem.category) != "test")
 
         if params.search:
             pattern = f"%{params.search.strip().lower()}%"
@@ -186,7 +186,12 @@ class ProblemCatalogService:
 
     async def get_all_categories(self) -> list[str]:
         """Get unique categories."""
-        stmt = select(Problem.category).distinct().order_by(Problem.category.asc())
+        stmt = (
+            select(Problem.category)
+            .where(func.lower(Problem.category) != "test")
+            .distinct()
+            .order_by(Problem.category.asc())
+        )
         res = await self.session.execute(stmt)
         return [row[0] for row in res.all()]
 

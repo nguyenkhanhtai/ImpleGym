@@ -570,10 +570,13 @@ if static_dir.exists():
 
 
 @app.get("/")
+@app.get("/problems")
 @app.get("/explorer")
-async def serve_explorer() -> FileResponse:
-    """Serve Problem Explorer page."""
-    path = static_dir / "explorer.html"
+async def serve_problems() -> FileResponse:
+    """Serve Problems catalog page."""
+    path = static_dir / "problems.html"
+    if not path.exists():
+        path = static_dir / "explorer.html"
     if not path.exists():
         path = static_dir / "index.html"
     if not path.exists():

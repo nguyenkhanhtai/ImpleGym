@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ImpleGym - Problem Explorer</title>
+  <title>ImpleGym - Problems</title>
   <!-- KaTeX for Math Equations (Local Fast Load) -->
   <link rel="stylesheet" href="/static/vendor/katex.min.css">
   <script src="/static/vendor/katex.min.js"></script>
@@ -22,7 +22,7 @@
         <span class="brand-badge">Problems Base</span>
       </div>
       <nav class="nav-links">
-        <a href="/explorer" class="nav-tab active">🧭 Explorer</a>
+        <a href="/problems" class="nav-tab active">📚 Problems</a>
         <a href="/gym" class="nav-tab">🏋️ Gym</a>
         <a href="/history" class="nav-tab">📜 History</a>
         <a href="/forge" class="nav-tab">⚡ Forge</a>
@@ -38,7 +38,7 @@
       <section class="page-pane">
         <div class="pane-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <h2>Problem Catalog</h2>
+            <h2>📚 Problems</h2>
             <p class="subtitle">Browse, filter, or manually pick implementation problems from Problems Base.</p>
           </div>
           <button id="btn-sync-problems" class="btn btn-primary btn-sm">🔄 Sync Problems Base</button>
@@ -56,8 +56,8 @@
             </select>
           </div>
           <div class="filter-group">
-            <label for="difficulty-slider">Max Difficulty: <span id="difficulty-label">10</span>/10</label>
-            <input type="range" id="difficulty-slider" min="1" max="10" value="10">
+            <label for="difficulty-slider">Max Difficulty: <span id="difficulty-label">12</span></label>
+            <input type="range" id="difficulty-slider" min="1" max="12" value="12">
           </div>
           <div class="filter-group">
             <label for="status-select">Status</label>

@@ -190,7 +190,7 @@ async def test_problem_success_target_time_benchmark(async_client: AsyncClient) 
 @pytest.mark.asyncio
 async def test_multi_page_routes_serve_html(async_client: AsyncClient) -> None:
     """Test that all dedicated frontend page routes serve valid HTML."""
-    routes = ["/", "/explorer", "/gym", "/history", "/forge"]
+    routes = ["/", "/problems", "/explorer", "/gym", "/history", "/forge"]
     for route in routes:
         res = await async_client.get(route)
         assert res.status_code == 200

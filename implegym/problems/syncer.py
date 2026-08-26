@@ -192,6 +192,8 @@ class ProblemSyncer:
                 p_path = Path(root)
                 rel_parts = p_path.relative_to(self.repo_dir).parts
                 category = rel_parts[0] if len(rel_parts) > 1 else "general"
+                if category.lower() == "test":
+                    continue
                 problem_dirs.append((category, p_path))
 
         total_count = len(problem_dirs)

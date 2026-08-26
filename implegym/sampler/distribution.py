@@ -58,8 +58,8 @@ class GaussianSampler:
         target_count = max(1, min(14, count if count is not None else config.num_problems))
         probs_map = self.compute_difficulty_probabilities(config)
 
-        # Retrieve all candidate problems with filters
-        query = select(Problem)
+        # Retrieve all candidate problems with filters (excluding test category)
+        query = select(Problem).where(func.lower(Problem.category) != "test")
         if config.category:
             query = query.where(func.lower(Problem.category) == config.category.strip().lower())
 
@@ -86,9 +86,7 @@ class GaussianSampler:
 
         if not candidates:
             return []
-        diff_buckets: dict[int, list[Problem]] = {d: [] for d in range(1, 11)}
-        for p in candidates:
-            diff_buckets[p.difficulty].append(p)
+        from collections import defaultdict
 
         chosen_problems: list[Problem] = []
         available_candidates = list(candidates)
@@ -98,7 +96,7 @@ class GaussianSampler:
                 break
 
             # Recalculate diff buckets for remaining available candidates
-            curr_diff_buckets: dict[int, list[Problem]] = {d: [] for d in range(1, 11)}
+            curr_diff_buckets: dict[int, list[Problem]] = defaultdict(list)
             for p in available_candidates:
                 curr_diff_buckets[p.difficulty].append(p)
 
