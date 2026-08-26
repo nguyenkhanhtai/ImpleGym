@@ -18,7 +18,7 @@ class ProblemBaseSchema(BaseModel):
     slug: str
     title: str
     category: str
-    difficulty: int = Field(ge=1, le=10, description="Difficulty rating from 1 to 10")
+    difficulty: int = Field(ge=1, le=20, description="Difficulty rating from 1 to 20")
     statement: str
     input_format: str = ""
     output_format: str = ""
@@ -53,7 +53,7 @@ class ProblemResponseSchema(ProblemBaseSchema):
 class ProblemUpdateSchema(BaseModel):
     """Schema for manually updating problem properties."""
 
-    difficulty: int | None = Field(None, ge=1, le=10, description="Difficulty rating from 1 to 10")
+    difficulty: int | None = Field(None, ge=1, le=20, description="Difficulty rating from 1 to 20")
     title: str | None = None
     category: str | None = None
     tags: list[str] | None = None
@@ -64,8 +64,8 @@ class ProblemFilterParams(BaseModel):
 
     search: str | None = None
     category: str | None = None
-    min_difficulty: int | None = Field(default=1, ge=1, le=10)
-    max_difficulty: int | None = Field(default=10, ge=1, le=10)
+    min_difficulty: int | None = Field(default=1, ge=1, le=20)
+    max_difficulty: int | None = Field(default=20, ge=1, le=20)
     tag: str | None = None
     solved_status: str | None = Field(default="all", description="all, solved, unsolved")
     page: int = Field(default=1, ge=1)
