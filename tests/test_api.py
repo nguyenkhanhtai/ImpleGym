@@ -2,6 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
@@ -36,6 +37,71 @@ async def test_list_problems_endpoint(async_client: AsyncClient) -> None:
     assert data["page_size"] == 2
     assert len(data["items"]) <= 2
     assert data["total_pages"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_list_problems_difficulty_range_above_ten(async_client: AsyncClient) -> None:
+    """Test that max_difficulty > 10 (e.g. 12 or 20) succeeds with 200 OK and filters accurately."""
+    # 1. Verify querying with max_difficulty=12 returns 200 OK (no 422 Unprocessable Entity)
+    res = await async_client.get(
+        "/api/problems?max_difficulty=12&solved_status=all&page=1&page_size=20"
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "items" in data
+
+    # 2. Update problem difficulty to 12
+    patch_res = await async_client.patch(
+        "/api/problems/aplusb",
+        json={"difficulty": 12},
+    )
+    assert patch_res.status_code == 200
+    assert patch_res.json()["difficulty"] == 12
+
+    # 3. Filter by difficulty range 11 to 20
+    filter_res = await async_client.get(
+        "/api/problems?min_difficulty=11&max_difficulty=20&page=1&page_size=10"
+    )
+    assert filter_res.status_code == 200
+    filter_data = filter_res.json()
+    slugs = [p["slug"] for p in filter_data["items"]]
+    assert "aplusb" in slugs
+
+
+@pytest.mark.asyncio
+async def test_list_problems_and_categories_exclude_test_category(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test that problems with 'Test' category are never returned in /api/problems or /api/categories."""
+    from implegym.db.models import Problem
+
+    # Insert a dummy test category problem
+    test_prob = Problem(
+        slug="dummy_test_problem",
+        title="Dummy Test Problem",
+        category="Test",
+        difficulty=1,
+        statement="A dummy test problem statement",
+        time_limit=1.0,
+        memory_limit_mb=512,
+        tags=["test"],
+        source="yosupo",
+    )
+    db_session.add(test_prob)
+    await db_session.commit()
+
+    # 1. Check /api/problems does not list the test problem
+    prob_res = await async_client.get("/api/problems?search=dummy_test_problem")
+    assert prob_res.status_code == 200
+    assert prob_res.json()["total"] == 0
+    assert len(prob_res.json()["items"]) == 0
+
+    # 2. Check /api/categories does not include 'Test'
+    cat_res = await async_client.get("/api/categories")
+    assert cat_res.status_code == 200
+    categories = cat_res.json()
+    assert not any(c.lower() == "test" for c in categories)
+
 
 
 @pytest.mark.asyncio
