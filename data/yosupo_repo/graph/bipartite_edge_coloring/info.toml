@@ -1,0 +1,34 @@
+title = 'Edge Coloring of Bipartite Graph'
+timelimit = 10.0
+difficulty = 9
+forum = "https://github.com/yosupo06/library-checker-problems/issues/393"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "from_issue1124.cpp"
+    number = 3
+[[tests]]
+    name = "large_cycle.cpp"
+    number = 2
+[[tests]]
+    name = "random.cpp"
+    number = 10
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "line.cpp"
+    number = 2
+[[tests]]
+    name = "many_smalls.cpp"
+    number = 2
+[[tests]]
+    name = "worst.cpp"
+    number = 3
+
+[params]
+    L_MAX = 100_000
+    R_MAX = 100_000
+    M_MAX = 100_000

@@ -34,47 +34,9 @@ def serve(
 
 
 @app.command()
-def seed() -> None:
-    """Seed initial library-checker problems into PostgreSQL database."""
-
-    async def _seed() -> None:
-        await init_db()
-        async with session_scope() as session:
-            indexer = ProblemIndexer(session)
-            count = await indexer.seed_default_problems()
-            console.print(
-                f"[bold green]Successfully seeded {count} problems into database.[/bold green]"
-            )
-
-    asyncio.run(_seed())
-
-
-@app.command()
-def scan(
-    repo_path: Path = typer.Argument(
-        ..., help="Path to local yosupo06/library-checker-problems clone"
-    ),
-) -> None:
-    """Scan and index a local library-checker-problems repository clone."""
-
-    async def _scan() -> None:
-        await init_db()
-        async with session_scope() as session:
-            indexer = ProblemIndexer(session)
-            count = await indexer.scan_local_yosupo_repo(repo_path)
-            console.print(
-                f"[bold green]Scanned repository and indexed {count} new problems.[/bold green]"
-            )
-
-    asyncio.run(_scan())
-
-
-@app.command("sync")
-@app.command("sync-problems")
-@app.command("sync-yosupo")
-def sync_problems(
+def seed(
     repo_dir: Path | None = typer.Option(
-        None, "--repo-dir", "-d", help="Custom local repo path to clone or sync into"
+        None, "--repo-dir", "-d", help="Custom local repo path to seed from"
     ),
     force: bool = typer.Option(
         False,
@@ -82,94 +44,29 @@ def sync_problems(
         "-f",
         help="Force re-generation and compilation of test cases for all problems",
     ),
-    max_tests: int | None = typer.Option(
-        None,
-        "--max-tests",
-        "-n",
-        help="Optional cap on generated test cases per problem (defaults to full count in info.toml)",
-    ),
 ) -> None:
-    """Clone or pull official problems repository and sync all problems to database."""
-    from typing import Any
+    """Seed problems from local repository into database."""
 
-    from rich.progress import (
-        BarColumn,
-        MofNCompleteColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-        TimeElapsedColumn,
-        TimeRemainingColumn,
-    )
-
-    async def _sync() -> None:
+    async def _seed() -> None:
         await init_db()
         async with session_scope() as session:
             from implegym.problems.syncer import ProblemSyncer
 
             syncer = ProblemSyncer(session, repo_dir=repo_dir)
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold blue]{task.description}"),
-                BarColumn(bar_width=30),
-                TaskProgressColumn(),
-                MofNCompleteColumn(),
-                TimeElapsedColumn(),
-                TimeRemainingColumn(),
-                console=console,
-            ) as progress:
-                task_id = progress.add_task("[cyan]Initializing...", total=100)
-
-                def _on_progress(state: dict[str, Any]) -> None:
-                    stage = state.get("stage", "")
-                    total = state.get("total", 0)
-                    current = state.get("current", 0)
-                    slug = state.get("current_slug", "")
-
-                    if stage == "git_clone_pull":
-                        progress.update(
-                            task_id,
-                            description="[cyan]Updating Git repo...",
-                            total=100,
-                            completed=10,
-                        )
-                    elif stage == "scanning":
-                        progress.update(
-                            task_id,
-                            description="[cyan]Scanning problem files...",
-                            total=100,
-                            completed=25,
-                        )
-                    elif stage == "syncing_problems":
-                        desc = (
-                            f"[bold cyan]Syncing:[/] [green]{slug}[/]"
-                            if slug
-                            else "[cyan]Syncing problems..."
-                        )
-                        progress.update(
-                            task_id, description=desc, total=total or 100, completed=current
-                        )
-                    elif stage == "completed":
-                        progress.update(
-                            task_id,
-                            description="[bold green]Sync completed![/]",
-                            total=total or current or 100,
-                            completed=total or current or 100,
-                        )
-
-                count = await syncer.sync_all_problems(
-                    progress_callback=_on_progress,
-                    force_regenerate_tests=force,
-                    max_tests=max_tests,
+            if syncer.repo_dir.exists():
+                count = await syncer.sync_all_problems(force_regenerate_tests=force)
+                console.print(
+                    f"[bold green]Successfully seeded {count} problems from local repository into database.[/bold green]"
+                )
+            else:
+                indexer = ProblemIndexer(session)
+                count = await indexer.seed_default_problems()
+                console.print(
+                    f"[bold green]Successfully seeded {count} default problems into database.[/bold green]"
                 )
 
-            console.print(
-                f"[bold green]✨ Successfully synchronized {count} problems into database![/bold green]"
-            )
+    asyncio.run(_seed())
 
-    asyncio.run(_sync())
 
 
 @app.command("set-difficulty")
@@ -333,7 +230,7 @@ def reset_system(
                     "[bold green]✅ Successfully reset database and testcase files.[/bold green]"
                 )
                 console.print(
-                    "[dim]Tip: Run 'implegym sync-yosupo' to re-sync all problems fresh from repository.[/dim]"
+                    "[dim]Tip: Run 'implegym seed' to re-seed all problems fresh from local repository.[/dim]"
                 )
 
     asyncio.run(_do_reset())

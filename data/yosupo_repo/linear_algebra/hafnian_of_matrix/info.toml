@@ -1,0 +1,32 @@
+title = 'Hafnian of Matrix'
+timelimit = 10.0
+difficulty = 7
+forum = "https://github.com/yosupo06/library-checker-problems/issues/467"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "small.cpp"
+    number = 3
+[[tests]]
+    name = "large.cpp"
+    number = 3
+[[tests]]
+    name = "max.cpp"
+    number = 3
+[[tests]]
+    name = "hack77047.cpp"
+    number = 1
+
+[[solutions]]
+    name = "naive.cpp"
+    expect = "RE"
+[[solutions]]
+    name = "bitdp.cpp"
+    expect = "RE"
+
+[params]
+    N_MIN = 2
+    N_MAX = 38
+    MOD = 998_244_353

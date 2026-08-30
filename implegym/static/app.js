@@ -740,17 +740,6 @@ async function loadHistory() {
 
 // Gaussian Sampler Modal & Trigger
 function initEventListeners() {
-  // Sync Problems Repo Button
-  const syncBtn = document.getElementById("btn-sync-problems") || document.getElementById("btn-sync-yosupo");
-  if (syncBtn) {
-    syncBtn.addEventListener("click", () => {
-      openSyncProgressModal(() => {
-        loadProblems();
-        initCategories();
-      });
-    });
-  }
-
   // Stop / Pause Workout Session Button
   const stopSessionBtn = document.getElementById("btn-stop-session");
   if (stopSessionBtn) {

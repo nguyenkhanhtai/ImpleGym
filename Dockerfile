@@ -28,14 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     clang \
     libpq5 \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application source and entrypoint script
+# Copy application source, problems data, and entrypoint script
 COPY implegym /app/implegym
+COPY data/yosupo_repo /app/data/yosupo_repo
 COPY README.md /app/README.md
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

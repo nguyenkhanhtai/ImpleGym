@@ -51,9 +51,7 @@ KNOWN_PROBLEM_DIFFICULTIES: dict[str, int] = CATEGORY_DIFFICULTY_BASELINE
 
 
 class ProblemSyncer:
-    """Clones, parses, and synchronizes problems from the official problems repository."""
-
-    OFFICIAL_REPO_URL = "https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git"
+    """Parses and seeds problems from the local problems repository."""
 
     def __init__(self, session: AsyncSession, repo_dir: Path | None = None) -> None:
         self.session = session
@@ -61,27 +59,11 @@ class ProblemSyncer:
             repo_dir
             or settings.problems_base_dir
             or (
-                Path("data") / "problems_repo"
-                if (Path("data") / "problems_repo").exists()
-                else (
-                    Path("data") / "yosupo_repo"
-                    if (Path("data") / "yosupo_repo").exists()
-                    else Path("data") / "problems_repo"
-                )
+                Path("data") / "yosupo_repo"
+                if (Path("data") / "yosupo_repo").exists()
+                else Path("data") / "problems_repo"
             )
         )
-
-    def clone_or_pull_repo(self) -> bool:
-        """Clone the repository if missing, or pull latest changes if already present."""
-        self.repo_dir.parent.mkdir(parents=True, exist_ok=True)
-        if not (self.repo_dir / ".git").exists():
-            cmd = ["git", "clone", "--depth", "1", self.OFFICIAL_REPO_URL, str(self.repo_dir)]
-            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            return res.returncode == 0
-        else:
-            cmd = ["git", "-C", str(self.repo_dir), "pull"]
-            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            return res.returncode == 0
 
     def parse_problem_directory(
         self,
@@ -191,10 +173,7 @@ class ProblemSyncer:
         )
 
         if not self.repo_dir.exists():
-            self.clone_or_pull_repo()
-
-        if not self.repo_dir.exists():
-            active_tracker.fail("Failed to clone or locate official problems repository")
+            active_tracker.fail("Local problems repository directory not found")
             return 0
 
         # Scan all directories containing info.toml and task.md

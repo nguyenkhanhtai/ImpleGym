@@ -219,6 +219,10 @@ __marimo__/
 
 # ImpleGym Runtime and Sandbox Build Directories
 sandbox/
-data/
+data/*.db
+data/*.sqlite*
+data/testcases/
+data/problems_repo/
 *.exe
+
 

@@ -1,0 +1,20 @@
+title = 'Matching on General Graph'
+timelimit = 5.0
+difficulty = 10
+forum = "https://github.com/yosupo06/library-checker-problems/issues/77"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+[[tests]]
+    name = "issue610.in"
+    number = 1
+[[tests]]
+    name = "random.cpp"
+    number = 2
+[[tests]]
+    name = "max_random.cpp"
+    number = 2
+[[tests]]
+    name = "sparse.cpp"
+    number = 5

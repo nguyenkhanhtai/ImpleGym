@@ -1,0 +1,40 @@
+title = 'Many Factorials'
+timelimit = 10.0
+difficulty = 2
+forum = "https://github.com/yosupo06/library-checker-problems/issues/1058"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "random.cpp"
+    number = 2
+[[tests]]
+    name = "near_max.cpp"
+    number = 2
+[[tests]]
+    name = "near_half.cpp"
+    number = 2
+[[tests]]
+    name = "many_bits.cpp"
+    number = 5
+
+[[solutions]]
+    name = "correct_log_time_multieval_faster.cpp"
+    allow_tle = false
+
+[[solutions]]
+    name = "correct_log_time_multieval.cpp"
+    allow_tle = false
+
+[[solutions]]
+    name = "sqrt.cpp"
+    allow_tle = true
+
+[[solutions]]
+    name = "naive.cpp"
+    allow_tle = true
+
+[params]
+    T_MAX = 100000
+    MOD = 998244353

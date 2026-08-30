@@ -1,0 +1,31 @@
+title = 'Convolution on the Multiplicative Monoid of $\mathbb{Z} / 2^N\mathbb{Z}$'
+timelimit = 5.0
+difficulty = 7
+forum = "https://github.com/yosupo06/library-checker-problems/issues/728"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+[[tests]]
+    name = "small.cpp"
+    number = 12
+[[tests]]
+    name = "large.cpp"
+    number = 6
+[[tests]]
+    name = "n_equals.cpp"
+    number = 21
+[[tests]]
+    name = "all_zero.cpp"
+    number = 4
+[[tests]]
+    name = "ans_zero.cpp"
+    number = 2
+
+[[solutions]]
+    name = "naive.cpp"
+    expect = "RE"
+
+[params]
+    N_MAX = 20
+    MOD = 998244353

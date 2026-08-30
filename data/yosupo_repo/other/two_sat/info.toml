@@ -1,0 +1,20 @@
+title = '2 Sat'
+timelimit = 5.0
+difficulty = 5
+forum = "https://github.com/yosupo06/library-checker-problems/issues/26"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+[[tests]]
+    name = "random.cpp"
+    number = 5
+[[tests]]
+    name = "max_random.cpp"
+    number = 5
+[[tests]]
+    name = "cycle_unsat.cpp"
+    number = 2
+[[tests]]
+    name = "long_chain.cpp"
+    number = 4

@@ -1,0 +1,30 @@
+title = 'Maximum Independent Set'
+timelimit = 5.0
+difficulty = 6
+forum = "https://github.com/yosupo06/library-checker-problems/issues/151"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+[[tests]]
+    name = "random.cpp"
+    number = 5
+[[tests]]
+    name = "max_random.cpp"
+    number = 5
+[[tests]]
+    name = "hack0.cpp"
+    number = 1
+[[tests]]
+    name = "handmade.in"
+    number = 1
+[[tests]]
+    name = "one_two.cpp"
+    number = 1
+[[tests]]
+    name = "many_maximals.cpp"
+    number = 1
+
+[params]
+    N_MIN = 1
+    N_MAX = 40

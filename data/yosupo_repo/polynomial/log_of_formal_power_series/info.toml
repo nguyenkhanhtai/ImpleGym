@@ -1,0 +1,27 @@
+title = 'Log of Formal Power Series'
+timelimit = 10.0
+difficulty = 7
+forum = "https://github.com/yosupo06/library-checker-problems/issues/66"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "random.cpp"
+    number = 5
+[[tests]]
+    name = "max_random.cpp"
+    number = 5
+[[tests]]
+    name = "max_all_zero.cpp"
+    number = 1
+[[tests]]
+    name = "near_262144.cpp"
+    number = 3
+[[tests]]
+    name = "small_degree.cpp"
+    number = 10
+
+[params]
+    N_MAX = 500_000
+    MOD = 998_244_353

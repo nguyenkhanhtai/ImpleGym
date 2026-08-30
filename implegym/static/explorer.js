@@ -39,7 +39,6 @@ function initExplorerFilters() {
   const diffLabel = document.getElementById("difficulty-label");
   const statusSelect = document.getElementById("status-select");
   const pageSizeSelect = document.getElementById("page-size-select");
-  const syncBtn = document.getElementById("btn-sync-problems") || document.getElementById("btn-sync-yosupo");
 
   if (diffSlider && diffLabel) {
     diffSlider.addEventListener("input", (e) => {
@@ -81,16 +80,6 @@ function initExplorerFilters() {
   if (prevBtn) prevBtn.onclick = () => loadProblems(Math.max(1, currentProblemPage - 1));
   if (nextBtn) nextBtn.onclick = () => loadProblems(Math.min(totalProblemPages, currentProblemPage + 1));
   if (lastBtn) lastBtn.onclick = () => loadProblems(totalProblemPages);
-
-  // Sync Yosupo Repo Button
-  if (syncBtn) {
-    syncBtn.addEventListener("click", () => {
-      openSyncProgressModal(() => {
-        loadProblems(1);
-        initCategories();
-      });
-    });
-  }
 }
 
 const problemListCache = new Map();

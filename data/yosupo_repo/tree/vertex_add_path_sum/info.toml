@@ -1,0 +1,34 @@
+title = 'Vertex Add Path Sum'
+timelimit = 5.0
+difficulty = 6
+forum = "https://github.com/yosupo06/library-checker-problems/issues/125"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "small.cpp"
+    number = 5
+[[tests]]
+    name = "random.cpp"
+    number = 5
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "line.cpp"
+    number = 2
+[[tests]]
+    name = "almost_line.cpp"
+    number = 2
+[[tests]]
+    name = "long-path-decomposition_killer.cpp"
+    number = 1
+
+[[solutions]]
+    name = "naive.cpp"
+    expect = "RE"
+
+[params]
+    N_AND_Q_MAX = 500_000
+    A_AND_X_MAX = 1_000_000_000

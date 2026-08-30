@@ -1,0 +1,7 @@
+title = 'Differ ID'
+timelimit = 2.0
+difficulty = 1
+
+[[tests]]
+    name = "example.in"
+    number = 2

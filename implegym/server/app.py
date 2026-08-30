@@ -70,11 +70,17 @@ def create_cached_response(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan event handler initializing database and seeding default problems."""
+    """Lifespan event handler initializing database and seeding problems."""
     await init_db()
     async with session_scope() as session:
-        indexer = ProblemIndexer(session)
-        await indexer.seed_default_problems()
+        from implegym.problems.syncer import ProblemSyncer
+
+        syncer = ProblemSyncer(session)
+        if syncer.repo_dir.exists():
+            await syncer.sync_all_problems()
+        else:
+            indexer = ProblemIndexer(session)
+            await indexer.seed_default_problems()
     yield
 
 
@@ -108,6 +114,9 @@ async def get_compilers() -> list[CompilerProfileSchema]:
     return compiler_manager.get_available_profiles()
 
 
+# --- Problems Endpoints ---
+
+
 @app.get("/api/categories")
 async def get_categories(
     request: Request,
@@ -117,6 +126,7 @@ async def get_categories(
     catalog = ProblemCatalogService(db)
     categories = await catalog.get_all_categories()
     return create_cached_response(request, categories)
+
 
 
 @app.get("/api/problems")
@@ -156,102 +166,18 @@ async def list_problems(
     return create_cached_response(request, data)
 
 
-async def _run_background_sync(force: bool = False, max_tests: int | None = None) -> None:
-    """Execute problem synchronization in background using an isolated session scope."""
-    try:
-        async with session_scope() as session:
-            from implegym.problems.syncer import ProblemSyncer
-
-            syncer = ProblemSyncer(session)
-            await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
-    except Exception as ex:
-        from implegym.problems.sync_manager import sync_progress_tracker
-
-        sync_progress_tracker.fail(str(ex))
-
-
-@app.post("/api/problems/sync")
-async def sync_problems(
-    background: bool = Query(True, description="Run synchronization in background"),
-    force: bool = Query(False, description="Force re-generation of all test cases"),
-    max_tests: int | None = Query(
-        default=None, ge=1, le=50, description="Optional cap on generated tests"
-    ),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict[str, Any]:
-    """Trigger synchronization from official problems repository."""
-    from implegym.problems.sync_manager import sync_progress_tracker
-    from implegym.problems.syncer import ProblemSyncer
-
-    state = sync_progress_tracker.get_state()
-    if state.is_running:
-        return {
-            "status": "already_running",
-            "message": "Synchronization is already running",
-            "progress": state.model_dump(),
-        }
-
-    if background:
-        asyncio.create_task(_run_background_sync(force=force, max_tests=max_tests))
-        return {
-            "status": "started",
-            "message": "Problem synchronization started in background",
-            "progress": sync_progress_tracker.get_state().model_dump(),
-        }
-
-    syncer = ProblemSyncer(db)
-    count = await syncer.sync_all_problems(force_regenerate_tests=force, max_tests=max_tests)
-    return {"status": "ok", "synced_count": count}
-
-
-@app.get("/api/problems/sync/status")
-async def get_sync_status() -> dict[str, Any]:
-    """Get the current real-time status of the problem synchronization job."""
-    from implegym.problems.sync_manager import sync_progress_tracker
-
-    return sync_progress_tracker.get_state().model_dump()
-
-
-@app.get("/api/problems/sync/stream")
-async def stream_sync_progress() -> StreamingResponse:
-    """Stream real-time synchronization progress via Server-Sent Events (SSE)."""
-    from implegym.problems.sync_manager import sync_progress_tracker
-
-    return StreamingResponse(
-        sync_progress_tracker.event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.post("/api/problems/sync/cancel")
-async def cancel_sync() -> dict[str, Any]:
-    """Request graceful cancellation of the active synchronization job."""
-    from implegym.problems.sync_manager import sync_progress_tracker
-
-    if not sync_progress_tracker.get_state().is_running:
-        return {"status": "not_running", "message": "No active synchronization job to cancel"}
-    sync_progress_tracker.request_cancel()
-    return {"status": "cancelling", "message": "Cancellation requested"}
-
-
-@app.post("/api/problems/{slug}/sync")
 @app.post("/api/problems/{slug}/generate-tests")
-async def sync_single_yosupo_problem(
+async def generate_problem_tests(
     slug: str,
     max_tests: int | None = Query(
         default=None, ge=1, le=50, description="Optional cap on generated tests"
     ),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
-    """Trigger testcase generation and synchronization for a single problem by slug."""
-    from implegym.problems.yosupo_syncer import YosupoSyncer
+    """Trigger testcase generation for a single problem by slug."""
+    from implegym.problems.syncer import ProblemSyncer
 
-    syncer = YosupoSyncer(db)
+    syncer = ProblemSyncer(db)
     prob_data = await syncer.sync_problem(slug, max_tests=max_tests)
     if not prob_data:
         raise HTTPException(status_code=404, detail="Problem not found in repository")

@@ -1,0 +1,29 @@
+name: UtilTest
+
+on:
+  push:
+    branches: 
+      - master
+  pull_request:
+
+jobs:
+  util-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --user -r requirements.txt
+      - name: Linter
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: "check --target-version py38 --select=FA102"
+      - name: Run generate_test.py
+        run: |
+          ulimit -s unlimited
+          ./generate_test.py

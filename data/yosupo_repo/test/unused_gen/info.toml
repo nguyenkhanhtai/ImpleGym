@@ -1,0 +1,7 @@
+title = 'Unused Gen'
+timelimit = 2.0
+difficulty = 1
+
+[[tests]]
+    name = "example.in"
+    number = 1

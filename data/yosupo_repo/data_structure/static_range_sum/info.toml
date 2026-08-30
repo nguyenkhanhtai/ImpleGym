@@ -1,0 +1,23 @@
+title = 'Static Range Sum'
+timelimit = 5.0
+difficulty = 1
+forum = "https://github.com/yosupo06/library-checker-problems/issues/398"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "random.cpp"
+    number = 5
+[[tests]]
+    name = "max_random.cpp"
+    number = 5
+
+[[solutions]]
+    name = "wa.cpp"
+    expect = "WA"
+
+[params]
+    MAX_N = 500_000
+    MAX_Q = 500_000
+    MAX_A = 1_000_000_000

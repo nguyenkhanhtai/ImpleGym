@@ -54,10 +54,6 @@ class Settings(BaseSettings):
         alias="yosupo_problems_dir",
         description="Optional local path to problem repository clone",
     )
-    problems_repo_url: str = Field(
-        default="https://github.com/nguyenkhanhtai/Implegym-Problems-Base.git",
-        description="Git repository URL for problems base",
-    )
     data_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent / "data",
         description="Local data and cache directory",

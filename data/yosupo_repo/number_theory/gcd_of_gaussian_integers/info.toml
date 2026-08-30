@@ -1,0 +1,33 @@
+title = 'Gcd of Gaussian Integers'
+timelimit = 5.0
+difficulty = 2
+forum = "https://github.com/yosupo06/library-checker-problems/issues/958"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+
+[[tests]]
+    name = "small.cpp"
+    number = 2
+
+[[tests]]
+    name = "random.cpp"
+    number = 5
+
+[[tests]]
+    name = "fibonacci_like.cpp"
+    number = 2
+
+[[tests]]
+    name = "large_gcd.cpp"
+    number = 2
+
+[[solutions]]
+    name = "random_correct.cpp"
+    
+    
+[params]
+    T_MAX = 100000
+    MIN = -1000000000
+    MAX = 1000000000

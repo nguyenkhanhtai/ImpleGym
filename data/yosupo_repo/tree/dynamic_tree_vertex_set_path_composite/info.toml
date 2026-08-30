@@ -1,0 +1,41 @@
+title = 'Dynamic Tree Vertex Set Path Composite'
+timelimit = 5.0
+difficulty = 11
+forum = "https://github.com/yosupo06/library-checker-problems/issues/307"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+
+[[tests]]
+    name = "almost_line.cpp"
+    number = 2
+
+[[tests]]
+    name = "small.cpp"
+    number = 5
+
+[[tests]]
+    name = "medium.cpp"
+    number = 5
+
+[[tests]]
+    name = "random.cpp"
+    number = 5
+
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+
+[[tests]]
+    name = "issue_1216.cpp"
+    number = 1
+
+[[solutions]]
+    name = "naive.cpp"
+    expect = "TLE"
+
+[params]
+    N_AND_Q_MIN = 1
+    N_AND_Q_MAX = 200_000
+    MOD = 998244353

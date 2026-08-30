@@ -1,0 +1,32 @@
+title = 'Matrix Product (Mod 2)'
+timelimit = 10.0
+difficulty = 3
+forum = "https://github.com/yosupo06/library-checker-problems/issues/896"
+
+[[tests]]
+    name = "example.in"
+    number = 3
+[[tests]]
+    name = "random.cpp"
+    number = 3
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "small.cpp"
+    number = 10
+[[tests]]
+    name = "middle.cpp"
+    number = 5
+
+[[tests]]
+    name = "many_1.cpp"
+    number = 2
+
+[[solutions]]
+    name = "naive.cpp"
+    allow_tle = true
+
+[params]
+    N_MAX = 4096
+    MOD = 2

@@ -1,0 +1,66 @@
+name: Generate test
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        type: string
+        required: true
+      cxx:
+        type: string
+        required: true
+      force-generate:
+        description: Ignore cache and force generate
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+      cxx:
+        type: string
+        required: true
+      force-generate:
+        default: false
+        type: boolean
+
+jobs:
+  generate:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --user -r requirements.txt
+
+      - name: Restore versions.json
+        uses: actions/cache/restore@v4
+        if: ${{ !inputs.force-generate }}
+        with:
+          path: versions.json
+          key: ${{ runner.os }}-(${{ inputs.cxx }})-versions-cache-
+
+      - name: Run generate.py
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            ulimit -s unlimited
+          fi
+          python3 generate_test.py TestGenerateAll
+        shell: bash
+        env:
+          CXX: ${{ inputs.cxx }}
+          ENABLE_GENERATE_TEST: 1
+          VERSIONS_CACHE_PATH: versions.json
+
+      - name: Save versions.json
+        uses: actions/cache/save@v4
+        with:
+          path: versions.json
+          key: ${{ runner.os }}-(${{ inputs.cxx }})-versions-cache-${{ hashFiles('versions.json') }}

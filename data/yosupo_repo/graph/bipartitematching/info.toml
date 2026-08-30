@@ -1,0 +1,52 @@
+title = 'Matching on Bipartite Graph'
+timelimit = 5.0
+difficulty = 5
+forum = "https://github.com/yosupo06/library-checker-problems/issues/37"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "random.cpp"
+    number = 10
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "line.cpp"
+    number = 2
+[[tests]]
+    name = "kuhn_killer.cpp"
+    number = 1
+[[tests]]
+    name = "many_smalls.cpp"
+    number = 2
+[[tests]]
+    name = "cycle.cpp"
+    number = 2
+[[tests]]
+    name = "line_random.cpp"
+    number = 2
+[[tests]]
+    name = "many_paths.cpp"
+    number = 3
+[[tests]]
+    name = "issue1124.cpp"
+    number = 3
+[[tests]]
+    name = "issue1068.in"
+    number = 1
+[[tests]]
+    name = "issue1068_large.cpp"
+    number = 6
+[[tests]]
+    name = "unique_matching.cpp"
+    number = 5
+[[tests]]
+    name = "augmented_cycle.cpp"
+    number = 3
+
+[params]
+    L_MAX = 100_000
+    R_MAX = 100_000
+    M_MAX = 200_000

@@ -1,0 +1,33 @@
+title = 'Sqrt of Formal Power Series'
+timelimit = 10.0
+difficulty = 9
+forum = "https://github.com/yosupo06/library-checker-problems/issues/73"
+
+[[tests]]
+    name = "example.in"
+    number = 2
+[[tests]]
+    name = "random.cpp"
+    number = 3
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "lower_deg_zero.cpp"
+    number = 8
+[[tests]]
+    name = "all_zero.cpp"
+    number = 2
+[[tests]]
+    name = "monomial.cpp"
+    number = 4
+[[tests]]
+    name = "near_262144.cpp"
+    number = 3
+[[tests]]
+    name = "small_degree.cpp"
+    number = 10
+
+[params]
+    N_MAX = 500_000
+    MOD = 998_244_353

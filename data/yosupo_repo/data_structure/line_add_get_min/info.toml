@@ -1,0 +1,39 @@
+title = 'Line Add Get Min'
+timelimit = 5.0
+difficulty = 4
+forum = "https://github.com/yosupo06/library-checker-problems/issues/174"
+
+[[tests]]
+    name = "example.in"
+    number = 1
+[[tests]]
+    name = "small.cpp"
+    number = 2
+[[tests]]
+    name = "random.cpp"
+    number = 3
+[[tests]]
+    name = "max_random.cpp"
+    number = 3
+[[tests]]
+    name = "parabola_random.cpp"
+    number = 3
+[[tests]]
+    name = "hand_max.cpp"
+    number = 1
+[[tests]]
+    name = "half.cpp"
+    number = 1
+[[tests]]
+    name = "no_output.cpp"
+    number = 1
+
+[[solutions]]
+    name = "naive.cpp"
+    expect = "RE"
+
+[params]
+    N_AND_Q_MIN = 1
+    N_AND_Q_MAX = 200_000
+    A_ABS_MAX = 1_000_000_000
+    B_ABS_MAX = 1_000_000_000_000_000_000
