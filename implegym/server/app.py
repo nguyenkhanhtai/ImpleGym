@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 from collections.abc import AsyncGenerator
@@ -8,7 +7,7 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,7 +125,6 @@ async def get_categories(
     catalog = ProblemCatalogService(db)
     categories = await catalog.get_all_categories()
     return create_cached_response(request, categories)
-
 
 
 @app.get("/api/problems")

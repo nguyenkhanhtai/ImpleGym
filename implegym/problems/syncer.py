@@ -283,9 +283,6 @@ class ProblemSyncer:
     ) -> dict[str, Any] | None:
         """Find a specific problem by slug, parse and regenerate all testcases, and update database."""
         if not self.repo_dir.exists():
-            self.clone_or_pull_repo()
-
-        if not self.repo_dir.exists():
             return None
 
         target_path: Path | None = None
@@ -899,7 +896,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    async def run():
+    async def run() -> None:
         await init_db()
         async with session_scope() as session:
             syncer = ProblemSyncer(session)

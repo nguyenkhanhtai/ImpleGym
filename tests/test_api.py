@@ -478,4 +478,3 @@ async def test_generate_problem_tests_endpoint(async_client: AsyncClient) -> Non
     assert data["status"] == "ok"
     assert data["slug"] == "aplusb"
     assert "testcases_count" in data
-

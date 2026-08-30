@@ -68,7 +68,6 @@ def seed(
     asyncio.run(_seed())
 
 
-
 @app.command("set-difficulty")
 def set_difficulty(
     slug: str = typer.Argument(..., help="Problem slug identifier, e.g. aplusb"),
